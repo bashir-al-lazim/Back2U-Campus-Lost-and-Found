@@ -6,6 +6,7 @@ import ErrorPage from "../../components/shared/ErrorPage";
 import PrivateRoute from "./PrivateRoute";
 import DashboardLayout from "../layout/DashboardLayout";
 import Greet from "../../components/shared/Greet";
+import AppLayout from "../layout/AppLayout";
 
 const router = createBrowserRouter([
     {
@@ -20,14 +21,11 @@ const router = createBrowserRouter([
         ]
     },
     {
-        path: 'dashboard',
-        element: <PrivateRoute><DashboardLayout /></PrivateRoute>,
+        path: 'app',
+        element: <PrivateRoute><AppLayout /></PrivateRoute>,
         errorElement: <ErrorPage />,
         children: [
-            {
-                index: true,
-                element: <Greet />
-            },
+            
         ]
     },
     {
