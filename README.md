@@ -64,25 +64,6 @@ Back2U/
 
 ## **🚀 Features Implemented**
 
-### **Item Discovery (Feed + Detail + Filters)**
-- Browse items in a beautiful grid layout
-- Filter by keyword, category, status, date range
-- Combine multiple filters
-- Pagination support
-- Detailed item view
-- Responsive design
-
-### **Authentication & Authorization**
-- User registration and login
-- JWT-based authentication
-- Role-based access control (Student, Staff, Admin)
-- Protected routes
-- Ban system (3 warnings = 30 days ban)
-
-### **User Roles**
-- **Student:** Browse items, file lost reports, submit claims
-- **Staff:** Post found items, accept/reject claims
-- **Admin:** Full system control, user management
 
 ### **Analytics on Home Page (Public) ✅**
 **What it is:** Trust metrics for everyone on the home page.  
