@@ -1,60 +1,63 @@
-# Back2U – University Lost and Found Platform
+Back2U – University Lost and Found Platform
+
 Back2U - Campus Lost & Found
-Project Structure
+
+🎯 Project Structure
 Back2U/
-├── Back2U-client/          # React Frontend (MVC)
+├── Back2U-client/                  # React Frontend (MVC)
 │   ├── src/
-│   │   ├── components/     # Reusable UI Components (View)
+│   │   ├── components/             # Reusable UI Components (View)
 │   │   │   ├── ItemCard/
 │   │   │   ├── FilterBar/
 │   │   │   ├── Pagination/
 │   │   │   ├── Navbar/
 │   │   │   ├── ProtectedRoute/
-│   │   │   └── HomeAnalytics/   # NEW: Analytics component for Home Page
-│   │   ├── views/          # Page Views (View)
+│   │   │   └── HomeAnalytics/       # NEW: Analytics component for Home Page
+│   │   ├── views/                  # Page Views (View)
 │   │   │   ├── Home/
 │   │   │   ├── ItemFeed/
 │   │   │   ├── ItemDetail/
 │   │   │   └── Auth/
-│   │   ├── services/       # API Services (Model)
+│   │   ├── services/               # API Services (Model)
 │   │   │   ├── itemService.js
 │   │   │   ├── authService.js
-│   │   │   ├── analyticsService.js   # NEW: Fetch home analytics data
+│   │   │   ├── analyticsService.js # NEW: Fetch home analytics data
 │   │   │   └── storageService.js
-│   │   ├── context/        # State Management (Controller)
+│   │   ├── context/                # State Management (Controller)
 │   │   │   └── AuthContext.jsx
-│   │   └── config/         # Configuration
+│   │   └── config/                 # Configuration
 │   │       ├── api.js
 │   │       └── firebase.js
 │   └── .env.local
 │
-└── Back2U-server/          # Node.js Backend (MVC)
-    ├── models/             # Database Models (Model)
+└── Back2U-server/                  # Node.js Backend (MVC)
+    ├── models/                     # Database Models (Model)
     │   ├── User.js
     │   ├── Item.js
     │   ├── Claim.js
     │   └── LostReport.js
-    ├── controllers/        # Business Logic (Controller)
+    ├── controllers/                # Business Logic (Controller)
     │   ├── itemController.js
     │   ├── authController.js
     │   ├── claimController.js
     │   ├── lostReportController.js
-    │   ├── analyticsController.js    # NEW: Analytics calculations
+    │   ├── analyticsController.js # NEW: Analytics calculations
     │   └── userController.js
-    ├── routes/             # API Routes (View/Router)
+    ├── routes/                     # API Routes (View/Router)
     │   ├── itemRoutes.js
     │   ├── authRoutes.js
     │   ├── claimRoutes.js
     │   ├── lostReportRoutes.js
-    │   ├── analyticsRoutes.js        # NEW: GET /api/analytics/home
+    │   ├── analyticsRoutes.js     # NEW: GET /api/analytics/home
     │   └── userRoutes.js
-    ├── middleware/         # Middleware
+    ├── middleware/                 # Middleware
     │   ├── auth.js
     │   └── errorHandler.js
-    ├── config/             # Configuration
+    ├── config/                     # Configuration
     │   └── database.js
-    ├── index.js            # Entry Point
+    ├── index.js                    # Entry Point
     └── .env
+
 
 🚀 Features Implemented
 Item Discovery (Feed + Detail + Filters)
@@ -91,7 +94,7 @@ Admin: Full system control, user management
 
 Analytics on Home Page (Public) ✅
 
-What it is: Trust metrics for everyone on the home page, including charts and numbers.
+What it is: Trust metrics for everyone on the home page.
 
 Users can:
 
@@ -109,15 +112,15 @@ Export data
 
 Implementation:
 
-Frontend
+Frontend:
 
 Component: HomeAnalytics in src/components/HomeAnalytics/
 
 Fetches data via analyticsService.js
 
-Displays charts/numbers dynamically
+Displays numbers dynamically on the home page
 
-Backend
+Backend:
 
 Controller: analyticsController.js
 
@@ -153,11 +156,22 @@ Analytics
 GET /api/analytics/home - Fetch home page metrics
 
 
-Other endpoints:
-Authentication, Items, Claims, Lost Reports, Users (Admin) — unchanged
+Other endpoints: Authentication, Items, Claims, Lost Reports, Users (Admin) — unchanged
 
 🎭 MVC Architecture Explanation
 
-Frontend: Model = services, View = components/views, Controller = Context API
+Frontend (React)
 
-Backend: Model = Mongoose schemas, View = Routes, Controller = Controllers
+Model: Services layer (services/)
+
+View: Components and Views (components/, views/)
+
+Controller: Context API (context/)
+
+Backend (Node.js/Express)
+
+Model: Mongoose schemas (models/)
+
+View: Routes (routes/)
+
+Controller: Controllers (controllers/)
