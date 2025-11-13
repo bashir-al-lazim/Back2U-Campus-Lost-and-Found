@@ -2,7 +2,10 @@ Back2U – University Lost and Found Platform
 
 Back2U - Campus Lost & Found
 
-🎯 Project Structure
+
+## 🎯 Project Structure
+
+````text
 Back2U/
 ├── Back2U-client/                  # React Frontend (MVC)
 │   ├── src/
@@ -57,121 +60,55 @@ Back2U/
     │   └── database.js
     ├── index.js                    # Entry Point
     └── .env
+````
 
+## **🚀 Features Implemented**
 
-🚀 Features Implemented
-Item Discovery (Feed + Detail + Filters)
+### **Item Discovery (Feed + Detail + Filters)**
+- Browse items in a beautiful grid layout
+- Filter by keyword, category, status, date range
+- Combine multiple filters
+- Pagination support
+- Detailed item view
+- Responsive design
 
-Browse items in a grid layout
+### **Authentication & Authorization**
+- User registration and login
+- JWT-based authentication
+- Role-based access control (Student, Staff, Admin)
+- Protected routes
+- Ban system (3 warnings = 30 days ban)
 
-Filter by keyword, category, status, date range
+### **User Roles**
+- **Student:** Browse items, file lost reports, submit claims
+- **Staff:** Post found items, accept/reject claims
+- **Admin:** Full system control, user management
 
-Pagination support
+### **Analytics on Home Page (Public) ✅**
+**What it is:** Trust metrics for everyone on the home page.  
 
-Detailed item view
+**Users can:**
+- **Active Items:** Count of items with status Open or Claimed
+- **Claim/Match Rate:** % of items that reached Claimed or Resolved out of all items
+- **Median Time-to-Resolution:** Median days from item creation to Resolved (only resolved items)
 
-Responsive design
+**Users cannot:**
+- View detailed charts
+- Export data
 
-Authentication & Authorization
-
-User registration and login
-
-JWT-based authentication
-
-Role-based access control
-
-Protected routes
-
-Ban system
-
-User Roles
-
-Student: Browse items, file lost reports, submit claims
-
-Staff: Post found items, accept/reject claims
-
-Admin: Full system control, user management
-
-Analytics on Home Page (Public) ✅
-
-What it is: Trust metrics for everyone on the home page.
-
-Users can:
-
-Active Items: Count of items with status Open or Claimed
-
-Claim/Match Rate: % of items that reached Claimed or Resolved out of all items
-
-Median Time-to-Resolution: Median days from item creation to Resolved (only resolved items)
-
-Users cannot:
-
-View detailed charts
-
-Export data
-
-Implementation:
-
-Frontend:
-
-Component: HomeAnalytics in src/components/HomeAnalytics/
-
-Fetches data via analyticsService.js
-
-Displays numbers dynamically on the home page
-
-Backend:
-
-Controller: analyticsController.js
-
-Route: GET /api/analytics/home
-
-Returns:
-
+**Implementation:**
+- **Frontend:**
+  - Component: `HomeAnalytics` in `src/components/HomeAnalytics/`
+  - Fetches data via `analyticsService.js`
+  - Displays numbers dynamically on the home page
+- **Backend:**
+  - Controller: `analyticsController.js`
+  - Route: `GET /api/analytics/home`
+  - Example response:
+```json
 {
   "activeItems": 42,
   "claimMatchRate": 76.5,
   "medianTimeToResolution": 5.2
 }
 
-
-Metrics update dynamically as data changes
-
-🔧 Installation & Setup
-Server
-cd Back2U-server
-npm install
-# Configure .env
-npm run dev
-
-Client
-cd Back2U-client
-npm install
-npm run dev
-
-📱 API Endpoints
-
-Analytics
-
-GET /api/analytics/home - Fetch home page metrics
-
-
-Other endpoints: Authentication, Items, Claims, Lost Reports, Users (Admin) — unchanged
-
-🎭 MVC Architecture Explanation
-
-Frontend (React)
-
-Model: Services layer (services/)
-
-View: Components and Views (components/, views/)
-
-Controller: Context API (context/)
-
-Backend (Node.js/Express)
-
-Model: Mongoose schemas (models/)
-
-View: Routes (routes/)
-
-Controller: Controllers (controllers/)
