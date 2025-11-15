@@ -18,8 +18,11 @@ const Nav = () => {
 
     const handleSignOut = () => {
         signOutUser()
-            .then(() => console.log('user successfully logged out'))
-            .catch(error => toast.error(error.message))
+            .then(() => toast.success('Successfully logged out'))
+            .catch(error => {
+                toast.error('Logout failed')
+                console.error(error.message)
+            })
     }
 
     const pages = ({ isActive }) =>

@@ -26,12 +26,27 @@ const client = new MongoClient(uri, {
 async function run() {
     try {
 
-        const usersCollection = client.db('back2uDB').collection('users')
+        const authorityCollection = client.db('back2uDB').collection('authorities')
 
-        app.get('/users', async(req, res) => {
-            const result = await usersCollection.find().toArray();
-            res.send(result)
-        })
+        app.get('/authority/:email', async (req, res) => {
+            const email = req.params.email;
+
+            try {
+                const user = await authorityCollection.findOne({ email });
+
+                if (!user || !['admin', 'staff'].includes(user.role)) {
+                    return res.status(404).json({ message: 'Not an authority user' });
+                }
+
+                res.json({
+                    email: user.email,
+                    role: user.role,  
+                });
+            } catch (err) {
+                console.error('Error fetching authority by email:', err);
+                res.status(500).json({ message: 'Server error' });
+            }
+        });
 
         // Send a ping to confirm a successful connection
         await client.db("admin").command({ ping: 1 });
