@@ -1,59 +1,45 @@
 import { useEffect, useState } from "react";
-import PropTypes from "prop-types";
+import PropTypes from 'prop-types';
 import { onAuthStateChanged, signInWithPopup, signOut } from "firebase/auth";
 import auth from "../config/firebase.config";
-import { AuthContext, providerGoogle } from "./createProvider";
-import useGetRole from "./apis/useGetRole";
+import { AuthContext, providerGoogle, } from "./createProvider";
+
 
 const AuthProvider = ({ children }) => {
-    const [firebaseUser, setFirebaseUser] = useState(null);
-    const [firebaseLoading, setFirebaseLoading] = useState(true);
+
+    const [user, setUser] = useState(null)
+    const [loading, setLoading] = useState(true)
+
+
+    const data = { role: 'staff'}   //change as per your development need tem
 
     const signInWithGoogle = async () => {
-        setFirebaseLoading(true);
+        setLoading(true);
         try {
             const cred = await signInWithPopup(auth, providerGoogle);
             return cred;
         } finally {
-            setFirebaseLoading(false);
+            setLoading(false);
         }
     };
 
-    const signOutUser = () => {
-        setFirebaseLoading(true);
-        return signOut(auth);
-    };
 
+    const signOutUser = () => {
+        setLoading(true)
+        return signOut(auth)
+    }
 
     useEffect(() => {
-        const unSubscribe = onAuthStateChanged(auth, (currentUser) => {
-            setFirebaseUser(currentUser);
-            setFirebaseLoading(false);
+        const unSubscribe = onAuthStateChanged(auth, async currentUser => {
+            setUser(currentUser);
+            setLoading(false);
         });
+
         return () => unSubscribe();
     }, []);
 
-    // fetch authority role (staff/admin) for logged-in user
-    console.log
-    const {
-        data: roleDoc,
-        isLoading: roleLoading,
-    } = useGetRole(firebaseUser?.email);
 
-    // final role: default to "student" if not in authorities collection
-    const role = roleDoc?.role || "student";
-
-    // combined loading (auth OR role fetch still in progress)
-    const loading = firebaseLoading || (firebaseUser?.email && roleLoading);
-
-    const authInfo = {
-        user: firebaseUser,
-        loading,
-        signInWithGoogle,
-        signOutUser,
-        role,        
-        roleDoc,     // full authority document if need more fields later
-    };
+    const authInfo = { user, signOutUser, loading, signInWithGoogle, data }   //added data tem
 
     return (
         <AuthContext.Provider value={authInfo}>
@@ -62,8 +48,8 @@ const AuthProvider = ({ children }) => {
     );
 };
 
-AuthProvider.propTypes = {
-    children: PropTypes.node,
-};
-
 export default AuthProvider;
+
+AuthProvider.propTypes = {
+    children: PropTypes.node
+}
