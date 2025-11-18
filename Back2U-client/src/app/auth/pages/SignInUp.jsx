@@ -4,7 +4,7 @@ import GoogleButton from "../components/GoogleButton";
 const SignInUp = () => {
     
     return (
-        <div className="min-h-[calc(100vh-16.325rem)] m-auto px-12 sm:px-0 mx-auto bg-base-200 pt-14">
+        <div className="min-h-[calc(100vh-16.325rem)] m-auto px-12 sm:px-0 mx-auto pt-26">
             <div className="mx-auto h-full sm:w-max">
                 <div className="m-auto py-12">
                     <div className="rounded-2xl border -mx-6 sm:-mx-10 p-8 sm:p-10">
