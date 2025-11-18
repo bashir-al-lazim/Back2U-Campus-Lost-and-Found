@@ -17,3 +17,22 @@ Staff can **add**, **edit**, and **delete** records for found items.
 
 ---
 
+
+
+
+## 9 🔗 Public Sharing: Link + Mini-flyer
+
+This feature introduces a dedicated share button that provides users with two quick, actionable methods for sharing an item's details: a copyable link with a pre-written message and a printable mini-flyer.
+
+---
+
+### 📋 Feature Overview
+
+| **Share Button** | Provides access to the two sharing actions below. |
+| **Copy Message** | Places a templated short message and the item link onto the user's clipboard. |
+| **Download Flyer** | Generates and downloads a printable A5 image file (e.g., JPEG, PNG) containing key item details and the share URL. |
+
+---
+
+
+
