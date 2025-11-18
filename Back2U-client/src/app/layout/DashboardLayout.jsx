@@ -74,6 +74,12 @@ const DashboardLayout = () => {
                                     Reported Contents
                                 </NavLink>
                             </li>
+                             <li>
+                             <NavLink to="/dashboard/items">
+                             <HiMiniClipboardDocumentCheck />
+                              Authority Intake & Catalog
+                             </NavLink>
+                            </li>
                         </>
                     )}
 
