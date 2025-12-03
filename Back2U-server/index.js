@@ -3,13 +3,16 @@ const cors = require("cors");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 require("dotenv").config();
 
+
 // initialization
 const app = express();
 const port = process.env.PORT || 5000;
 
+
 // middleware
 app.use(cors());
 app.use(express.json());
+
 
 // MongoDB connection URI
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.SECRET_KEY}@back2u.slzfoxx.mongodb.net/?appName=Back2U`;
@@ -22,30 +25,16 @@ const client = new MongoClient(uri, {
   },
 });
 
+
+
 async function run() {
   try {
-    await client.connect();
 
     const db = client.db("back2uDB");
-    const usersCollection = db.collection("users");
     const itemsCollection = db.collection("items");
     const lostReportsCollection = db.collection("lostreports");
     const authorityCollection = db.collection("authorities");
 
-    await client.db("admin").command({ ping: 1 });
-    console.log("✅ MongoDB connected successfully");
-
-    // -----------------------
-    // SIMPLE ROUTES
-    // -----------------------
-    app.get("/", (req, res) => {
-      res.send("Back2U server is running");
-    });
-
-    app.get("/users", async (req, res) => {
-      const result = await usersCollection.find().toArray();
-      res.send(result);
-    });
 
     // -----------------------
     // AUTHORITY ROUTE
@@ -64,6 +53,7 @@ async function run() {
       }
     });
 
+    
     // -----------------------
     // ITEMS CRUD
     // -----------------------
@@ -145,10 +135,10 @@ async function run() {
         const resolvedItems = combined.filter((d) => d.resolvedAt && d.status === "Resolved");
         let medianDays = 0;
         if (resolvedItems.length > 0) {
-          const daysArray = resolvedItems.map((doc) => (new Date(doc.resolvedAt) - new Date(doc.createdAt)) / (1000*60*60*24));
-          daysArray.sort((a,b)=>a-b);
-          const mid = Math.floor(daysArray.length/2);
-          medianDays = daysArray.length % 2 === 0 ? (daysArray[mid-1]+daysArray[mid])/2 : daysArray[mid];
+          const daysArray = resolvedItems.map((doc) => (new Date(doc.resolvedAt) - new Date(doc.createdAt)) / (1000 * 60 * 60 * 24));
+          daysArray.sort((a, b) => a - b);
+          const mid = Math.floor(daysArray.length / 2);
+          medianDays = daysArray.length % 2 === 0 ? (daysArray[mid - 1] + daysArray[mid]) / 2 : daysArray[mid];
         }
 
         res.json({ activeItems, claimMatchRate, medianTimeToResolution: medianDays.toFixed(1) });
@@ -163,9 +153,9 @@ async function run() {
         const monthsBack = parseInt(req.query.months || "6", 10);
         const now = new Date();
         const months = [];
-        for (let i = monthsBack-1; i>=0; i--) {
-          const d = new Date(now.getFullYear(), now.getMonth()-i,1);
-          months.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
+        for (let i = monthsBack - 1; i >= 0; i--) {
+          const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+          months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
         }
 
         const [items, lostReports] = await Promise.all([
@@ -175,51 +165,183 @@ async function run() {
         const combined = [...items, ...lostReports];
 
         const safeMonth = (dateVal) => {
-          if(!dateVal) return null;
+          if (!dateVal) return null;
           const d = new Date(dateVal);
-          if(isNaN(d.getTime())) return null;
-          return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+          if (isNaN(d.getTime())) return null;
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
         };
 
         const countByMonth = (statuses, dateField) => {
           const map = {};
-          combined.forEach(doc=>{
-            if(!statuses.includes(doc.status)) return;
+          combined.forEach(doc => {
+            if (!statuses.includes(doc.status)) return;
             const month = safeMonth(doc[dateField]);
-            if(!month) return;
-            map[month] = (map[month]||0)+1;
+            if (!month) return;
+            map[month] = (map[month] || 0) + 1;
           });
           return map;
         };
 
-        const open = countByMonth(["Open","Active"],"createdAt");
-        const claimed = countByMonth(["Claimed"],"createdAt");
-        const resolved = countByMonth(["Resolved"],"resolvedAt");
-        const unresolved = countByMonth(["Open","Active","Claimed"],"createdAt");
+        const open = countByMonth(["Open", "Active"], "createdAt");
+        const claimed = countByMonth(["Claimed"], "createdAt");
+        const resolved = countByMonth(["Resolved"], "resolvedAt");
+        const unresolved = countByMonth(["Open", "Active", "Claimed"], "createdAt");
 
         res.json({
           months,
-          series:{
-            Open: months.map(m=>open[m]||0),
-            Claimed: months.map(m=>claimed[m]||0),
-            Resolved: months.map(m=>resolved[m]||0),
-            Unresolved: months.map(m=>unresolved[m]||0),
+          series: {
+            Open: months.map(m => open[m] || 0),
+            Claimed: months.map(m => claimed[m] || 0),
+            Resolved: months.map(m => resolved[m] || 0),
+            Unresolved: months.map(m => unresolved[m] || 0),
           }
         });
-      } catch(err){
-        console.error("❌ /analytics/monthly error",err);
-        res.status(500).json({error:"Failed to compute monthly analytics"});
+      } catch (err) {
+        console.error("❌ /analytics/monthly error", err);
+        res.status(500).json({ error: "Failed to compute monthly analytics" });
       }
     });
 
-    // -----------------------
-    // START SERVER
-    // -----------------------
-    app.listen(port, () => console.log(`🚀 Back2U server running on port ${port}`));
 
-  } catch(error){
+    // ========================
+    // ITEMS ROUTES (Item Discovery Feature)
+    // ========================
+
+    // Get all items with filters (keyword, category, date, status)
+    app.get('/api/items', async (req, res) => {
+      try {
+        const {
+          keyword,
+          category,
+          status,
+          dateFrom,
+          dateTo,
+          page = 1,
+          limit = 12,
+        } = req.query;
+
+        // Build query
+        const query = {};
+
+        // Keyword search (title or description)
+        if (keyword) {
+          query.$or = [
+            { title: { $regex: keyword, $options: 'i' } },
+            { description: { $regex: keyword, $options: 'i' } },
+          ];
+        }
+
+        // Category filter
+        if (category && category !== 'All') {
+          query.category = category;
+        }
+
+        // Status filter
+        if (status && status !== 'All') {
+          query.status = status;
+        }
+
+        // Date range filter
+        if (dateFrom || dateTo) {
+          query.dateFound = {};
+          if (dateFrom) {
+            query.dateFound.$gte = new Date(dateFrom);
+          }
+          if (dateTo) {
+            const endDate = new Date(dateTo);
+            endDate.setHours(23, 59, 59, 999);
+            query.dateFound.$lte = endDate;
+          }
+        }
+
+        // Pagination
+        const skip = (page - 1) * limit;
+        const limitNum = parseInt(limit);
+
+        // Execute query - sort by newest first
+        const items = await itemsCollection
+          .find(query)
+          .sort({ createdAt: -1 })
+          .limit(limitNum)
+          .skip(skip)
+          .toArray();
+
+        // Get total count
+        const total = await itemsCollection.countDocuments(query);
+
+        res.status(200).json({
+          success: true,
+          data: items,
+          pagination: {
+            currentPage: parseInt(page),
+            totalPages: Math.ceil(total / limitNum),
+            totalItems: total,
+            itemsPerPage: limitNum,
+          },
+        });
+      } catch (error) {
+        console.error('Error fetching items:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Failed to fetch items',
+          error: error.message,
+        });
+      }
+    })
+
+    // Get single item by ID
+    app.get('/api/items/:id', async (req, res) => {
+      try {
+        const { id } = req.params;
+
+        if (!ObjectId.isValid(id)) {
+          return res.status(400).json({
+            success: false,
+            message: 'Invalid item ID',
+          });
+        }
+
+        const item = await itemsCollection.findOne({ _id: new ObjectId(id) });
+
+        if (!item) {
+          return res.status(404).json({
+            success: false,
+            message: 'Item not found',
+          });
+        }
+
+        res.status(200).json({
+          success: true,
+          data: item,
+        });
+      } catch (error) {
+        console.error('Error fetching item:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Failed to fetch item',
+          error: error.message,
+        });
+      }
+    })
+
+
+    // Send a ping to confirm a successful connection
+    await client.db("admin").command({ ping: 1 });
+    console.log("Pinged your deployment. You successfully connected to MongoDB!");
+
+
+
+  } catch (error) {
     console.error("❌ MongoDB connection failed:", error);
   }
 }
 
 run().catch(console.dir);
+
+app.get('/', (req, res) => {
+  res.send('Back2U server is running')
+})
+
+app.listen(port, () => {
+  console.log(`Back2U server is running on port ${port}`)
+})

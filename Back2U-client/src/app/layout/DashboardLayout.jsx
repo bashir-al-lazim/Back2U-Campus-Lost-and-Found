@@ -6,11 +6,11 @@ import { HiMiniClipboardDocumentCheck } from "react-icons/hi2";
 import { MdReport } from "react-icons/md";
 import { FaDatabase, FaUsers } from "react-icons/fa";
 import { AuthContext } from "../providers/createProvider";
-import { ToastContainer } from "react-toastify";
+import { toast, ToastContainer } from "react-toastify";
 
 const DashboardLayout = () => {
 
-    const { user, role, loading } = useContext(AuthContext);
+    const { user, role, loading, signOutUser } = useContext(AuthContext);
 
     if (loading) {
         return (
@@ -20,7 +20,14 @@ const DashboardLayout = () => {
         );
     }
 
-    console.log(role)
+    const handleSignOut = () => {
+        signOutUser()
+            .then(() => toast.success('Successfully logged out'))
+            .catch(error => {
+                toast.error('Logout failed')
+                console.error(error.message)
+            })
+    }
 
     return (
         <div className="flex flex-col md:flex-row">
@@ -74,11 +81,11 @@ const DashboardLayout = () => {
                                     Reported Contents
                                 </NavLink>
                             </li>
-                             <li>
-                             <NavLink to="/dashboard/items">
-                             <HiMiniClipboardDocumentCheck />
-                              Authority Intake & Catalog
-                             </NavLink>
+                            <li>
+                                <NavLink to="/dashboard/items">
+                                    <HiMiniClipboardDocumentCheck />
+                                    Authority Intake & Catalog
+                                </NavLink>
                             </li>
                         </>
                     )}
@@ -113,6 +120,11 @@ const DashboardLayout = () => {
                         <NavLink to="/">
                             <FaHome />
                             Home
+                        </NavLink>
+                    </li>
+                    <li>
+                        <NavLink onClick={handleSignOut}>
+                            Logout
                         </NavLink>
                     </li>
                 </ul>

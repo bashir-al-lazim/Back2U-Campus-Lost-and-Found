@@ -10,6 +10,8 @@ import AppLayout from "../layout/AppLayout";
 import AuthorityCatalogPage from "../../features/authority/pages/AuthorityCatalogPage";
 import AuthorityCreatePage from "../../features/authority/pages/AuthorityCreatePage";
 import AuthorityUpdatePage from "../../features/authority/pages/AuthorityUpdatePage";
+import ItemFeed from "../../features/items/pages/ItemFeed";
+import ItemDetail from "../../features/items/pages/ItemDetail";
 
 
 const router = createBrowserRouter([
@@ -41,7 +43,14 @@ const router = createBrowserRouter([
         element: <PrivateRoute><AppLayout /></PrivateRoute>,
         errorElement: <ErrorPage />,
         children: [
-
+            {
+                path: 'items',
+                element: <ItemFeed />,
+            },
+            {
+                path: 'items/:id',
+                element: <ItemDetail />,
+            },
         ]
     },
     {
@@ -54,7 +63,7 @@ const router = createBrowserRouter([
                 element: <Home />,
             },
             {
-                path: '/login',
+                path: 'login',
                 element: <SignInUp />,
             },
         ]
