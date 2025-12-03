@@ -1,6 +1,13 @@
-# Back2U – University Lost and Found Platform
+# Back2U – Campus Lost and Found Platform
 
-# Features:
+
+## 🎯 Project Structure
+
+- add me please
+
+## **🚀 Features Implemented**
+
+
 ## 1 📝 Authority Intake & Cataloging (Staff):
 
 This feature allows designated staff members to manage the official catalog of found items that are turned in at the desk. This serves as the system of record for all officially processed lost and found items.
@@ -35,4 +42,33 @@ This feature introduces a dedicated share button that provides users with two qu
 ---
 
 
+
+
+## 12 **Analytics on Home Page (Public) ✅**
+**What it is:** Trust metrics for everyone on the home page.  
+
+**Users can:**
+- **Active Items:** Count of items with status Open or Claimed
+- **Claim/Match Rate:** % of items that reached Claimed or Resolved out of all items
+- **Median Time-to-Resolution:** Median days from item creation to Resolved (only resolved items)
+
+**Users cannot:**
+- View detailed charts
+- Export data
+
+**Implementation:**
+- **Frontend:**
+  - Component: `HomeAnalytics` in `src/components/HomeAnalytics/`
+  - Fetches data via `analyticsService.js`
+  - Displays numbers dynamically on the home page
+- **Backend:**
+  - Controller: `analyticsController.js`
+  - Route: `GET /api/analytics/home`
+  - Example response:
+```json
+{
+  "activeItems": 42,
+  "claimMatchRate": 76.5,
+  "medianTimeToResolution": 5.2
+}
 
