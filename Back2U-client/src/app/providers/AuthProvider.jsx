@@ -51,7 +51,7 @@ const AuthProvider = ({ children }) => {
         loading,
         signInWithGoogle,
         signOutUser,
-        role,        
+        role,
         roleDoc,     // full authority document if need more fields later
     };
 
