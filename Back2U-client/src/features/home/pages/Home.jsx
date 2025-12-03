@@ -1,20 +1,23 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar
 } from "recharts";
+import ShareActions from "../../post_sharing/components/ShareActions";
+import MiniFlyer from "../../post_sharing/components/MiniFlyer";
+
+const demoItem = {
+  _id: "demo123",
+  title: "Black Leather Wallet",
+  category: "Accessories",
+  status: "Open",
+  photoUrl: "https://images.unsplash.com/photo-1512496015851-a90fb38ba796?w=1200",
+  date: "2025-11-10T09:00:00Z"
+};
 
 const Home = () => {
   const [analytics, setAnalytics] = useState(null);
   const [monthlyData, setMonthlyData] = useState(null);
+  const flyerRef = useRef(null);
 
   useEffect(() => {
     const fetchAnalytics = async () => {
@@ -43,60 +46,28 @@ const Home = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Top Navigation */}
-      <nav className="navbar bg-white shadow-md fixed top-0 left-0 right-0 z-50">
-        <div className="container mx-auto flex justify-between items-center px-6 py-3">
-          <div className="text-xl font-bold text-gray-800">Back2U</div>
-          <div className="space-x-4 flex items-center">
-            <a
-              href="/"
-              className="relative inline-flex items-center justify-center px-5 py-2 overflow-hidden font-medium bg-yellow-400 text-white hover:text-yellow-400 rounded-lg group border-yellow-400 border-[0.1rem] min-w-max"
-            >
-              <span className="absolute w-0 h-0 transition-all duration-500 ease-out bg-base-100 rounded-full group-hover:w-56 group-hover:h-56"></span>
-              <span className="relative">Home</span>
-            </a>
-
-            <a
-              href="/login"
-              className="relative inline-flex items-center justify-center px-5 py-2 overflow-hidden font-medium bg-yellow-400 text-white hover:text-yellow-400 rounded-lg group border-yellow-400 border-[0.1rem] min-w-max"
-            >
-              <span className="absolute w-0 h-0 transition-all duration-500 ease-out bg-base-100 rounded-full group-hover:w-56 group-hover:h-56"></span>
-              <span className="relative">Login</span>
-            </a>
-          </div>
-        </div>
-      </nav>
-
-      {/* Analytics Content */}
+      {/* Analytics Section */}
       <div className="container mx-auto px-4 pt-20 pb-16">
         <h1 className="text-3xl font-bold text-center mb-8 text-gray-800">
           Analytics
         </h1>
 
-        {/* Metrics Section */}
+        {/* Metrics */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-12">
           <div className="bg-white shadow-md rounded-2xl p-6 text-center">
-            <h2 className="text-lg font-semibold text-gray-600 mb-2">
-              Active Items
-            </h2>
+            <h2 className="text-lg font-semibold text-gray-600 mb-2">Active Items</h2>
             <p className="text-3xl font-bold text-blue-600">
               {analytics ? analytics.activeItems : "--"}
             </p>
           </div>
-
           <div className="bg-white shadow-md rounded-2xl p-6 text-center">
-            <h2 className="text-lg font-semibold text-gray-600 mb-2">
-              Claim / Match Rate
-            </h2>
+            <h2 className="text-lg font-semibold text-gray-600 mb-2">Claim / Match Rate</h2>
             <p className="text-3xl font-bold text-green-600">
               {analytics ? `${analytics.claimMatchRate}%` : "--"}
             </p>
           </div>
-
           <div className="bg-white shadow-md rounded-2xl p-6 text-center">
-            <h2 className="text-lg font-semibold text-gray-600 mb-2">
-              Median Time to Resolution
-            </h2>
+            <h2 className="text-lg font-semibold text-gray-600 mb-2">Median Time to Resolution</h2>
             <p className="text-3xl font-bold text-purple-600">
               {analytics ? `${analytics.medianTimeToResolution} days` : "--"}
             </p>
@@ -104,11 +75,9 @@ const Home = () => {
         </div>
 
         {/* Charts */}
-        {monthlyData && monthlyData.months && (
+        {monthlyData?.months && (
           <div className="bg-white shadow-lg rounded-2xl p-6">
-            <h2 className="text-2xl font-semibold text-gray-800 mb-6 text-center">
-              Monthly Overview
-            </h2>
+            <h2 className="text-2xl font-semibold text-gray-800 mb-6 text-center">Monthly Overview</h2>
 
             {/* Line Chart */}
             <div className="w-full h-80 mb-10">
@@ -162,6 +131,12 @@ const Home = () => {
             </div>
           </div>
         )}
+
+        {/* Share Button Section */}
+        <div className="mt-20">
+          <ShareActions item={demoItem} flyerRef={flyerRef} />
+          <MiniFlyer ref={flyerRef} item={demoItem} />
+        </div>
       </div>
     </div>
   );

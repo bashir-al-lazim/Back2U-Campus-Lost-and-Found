@@ -1,102 +1,126 @@
 import { useContext } from "react";
-import { FaCartPlus, FaDatabase, FaHome, FaList, FaShoppingCart, FaUser, FaUsers } from "react-icons/fa";
+import { FaHome, FaUser, FaCartPlus, FaList } from "react-icons/fa";
 import { NavLink, Outlet } from "react-router-dom";
-// import useAxiosSecure from "../hooks/useAxiosSecure";
-// import { useQuery } from "@tanstack/react-query";
 import { BiSolidCoupon } from "react-icons/bi";
 import { HiMiniClipboardDocumentCheck } from "react-icons/hi2";
 import { MdReport } from "react-icons/md";
+import { FaDatabase, FaUsers } from "react-icons/fa";
 import { AuthContext } from "../providers/createProvider";
 import { ToastContainer } from "react-toastify";
 
-
 const DashboardLayout = () => {
 
-    const { user, data } = useContext(AuthContext)  //added data tem
-    // const axiosSecure = useAxiosSecure()
+    const { user, role, loading } = useContext(AuthContext);
 
-    // const { data = {} } = useQuery({
-    //     queryKey: ['users', user.email],
-    //     queryFn: async () => {
-    //         const res = await axiosSecure.get(`/users/${user.email}`)
-    //         return res.data
-    //     }
-    // })
+    if (loading) {
+        return (
+            <div className="hero min-h-screen">
+                <span className="loading loading-bars loading-lg"></span>
+            </div>
+        );
+    }
+
+    console.log(role)
 
     return (
         <div className="flex flex-col md:flex-row">
-            {/* dashboard side bar */}
+            {/* sidebar */}
             <div className="md:w-64 md:min-h-screen bg-base-300 border-r-[0.125rem] border-r-yellow-600">
-                <ul className="menu p-4 ">
-                    {     //change as per your need
-                        data.role === 'admin' && <>
-                            {/* <li>
+                <ul className="menu p-4">
+
+                    {/* optional small header */}
+                    {user && (
+                        <li className="mb-2 text-xs text-gray-500">
+                            Signed in as <span className="font-semibold">{user.email}</span> ({role})
+                        </li>
+                    )}
+
+                    {/* admin menu */}
+                    {role === "admin" && (
+                        <>
+                            <li>
                                 <NavLink to="/dashboard/statistics">
                                     <FaDatabase />
-                                    Statistics</NavLink>
-                            </li>       
+                                    Statistics
+                                </NavLink>
+                            </li>
                             <li>
                                 <NavLink to="/dashboard/manage-users">
-                                    <FaUsers></FaUsers>
-                                    Manage Users</NavLink>
+                                    <FaUsers />
+                                    Manage Users
+                                </NavLink>
                             </li>
                             <li>
                                 <NavLink to="/dashboard/manage-coupons">
                                     <BiSolidCoupon />
-                                    Manage Coupons</NavLink>
-                            </li> */}
+                                    Manage Coupons
+                                </NavLink>
+                            </li>
                         </>
-                    }
-                    {     //change as per your need
-                        data.role === 'staff' && <>
-                            {/* <li>
+                    )}
+
+                    {/* staff menu */}
+                    {role === "staff" && (
+                        <>
+                            <li>
                                 <NavLink to="/dashboard/product-review-queue">
                                     <HiMiniClipboardDocumentCheck />
-                                    Product Review</NavLink>
+                                    Product Review
+                                </NavLink>
                             </li>
                             <li>
                                 <NavLink to="/dashboard/reported-contents">
                                     <MdReport />
-                                    Reported Contents</NavLink>
-                            </li> */}
+                                    Reported Contents
+                                </NavLink>
+                            </li>
+                             <li>
+                             <NavLink to="/dashboard/items">
+                             <HiMiniClipboardDocumentCheck />
+                              Authority Intake & Catalog
+                             </NavLink>
+                            </li>
                         </>
-                    }
-                    {    //change as per your need
-                        data.role === 'student' && <>
-                            {/* <li>
+                    )}
+
+                    {/* student menu */}
+                    {role === "student" && (
+                        <>
+                            <li>
                                 <NavLink to="/dashboard/my-profile">
                                     <FaUser />
-                                    My Profile</NavLink>
+                                    My Profile
+                                </NavLink>
                             </li>
                             <li>
                                 <NavLink to="/dashboard/add-products">
                                     <FaCartPlus />
-                                    Add Product</NavLink>
+                                    Add Product
+                                </NavLink>
                             </li>
                             <li>
                                 <NavLink to="/dashboard/my-products">
-                                    <FaList></FaList>
-                                    My Products</NavLink>
-                            </li> */}
+                                    <FaList />
+                                    My Products
+                                </NavLink>
+                            </li>
                         </>
-                    }
+                    )}
+
                     {/* shared nav links */}
                     <div className="divider divider-warning"></div>
                     <li>
                         <NavLink to="/">
-                            <FaHome></FaHome>
-                            Home</NavLink>
+                            <FaHome />
+                            Home
+                        </NavLink>
                     </li>
-                    {/* <li>
-                        <NavLink to="/items">
-                            <FaShoppingCart />
-                            Items</NavLink>
-                    </li> */}
                 </ul>
             </div>
-            {/* dashboard content */}
+
+            {/* main content */}
             <div className="flex flex-1 py-5 md:py-10 px-4 items-start">
-                <Outlet></Outlet>
+                <Outlet />
                 <ToastContainer
                     position="bottom-right"
                     autoClose={5000}
