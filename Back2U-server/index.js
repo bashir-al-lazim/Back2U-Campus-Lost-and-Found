@@ -53,7 +53,7 @@ async function run() {
       }
     });
 
-    
+
     // -----------------------
     // ITEMS CRUD
     // -----------------------
@@ -83,18 +83,39 @@ async function run() {
       res.status(201).send(created);
     });
 
-    app.put("/items/:id", async (req, res) => {
+    // UPDATE item
+    app.put('/items/:id', async (req, res) => {
       const { id } = req.params;
       const update = req.body;
+
       try {
         const filter = { _id: new ObjectId(id) };
-        const updateDoc = { $set: { ...update, updatedAt: new Date() } };
-        const result = await itemsCollection.findOneAndUpdate(filter, updateDoc, { returnDocument: "after" });
-        if (!result.value) return res.status(404).send("Item not found");
-        res.send(result.value);
+
+        // Build update object with proper fields
+        const updateDoc = {
+          $set: {
+            ...update,
+            photo: update.photoUrl || update.photo || update.photoUrl,
+            photoUrl: update.photoUrl || update.photo || update.photoUrl,
+            location: update.location || update.locationText || update.location,
+            updatedAt: new Date()
+          }
+        };
+
+        const result = await itemsCollection.findOneAndUpdate(
+          filter,
+          updateDoc,
+          { returnDocument: 'after' }
+        );
+
+        if (!result) {
+          return res.status(404).send('Item not found');
+        }
+
+        res.send(result);
       } catch (err) {
         console.error(err);
-        res.status(400).send("Invalid item id");
+        res.status(400).send('Invalid item id');
       }
     });
 
@@ -108,6 +129,214 @@ async function run() {
       } catch (err) {
         console.error(err);
         res.status(400).send("Invalid item id");
+      }
+    });
+
+    // -----------------------
+    // LOST REPORTS CRUD
+    // -----------------------
+    app.get("/lostreports", async (req, res) => {
+      try {
+        const { userEmail } = req.query;
+        const filter = userEmail ? { userEmail } : {};
+        const reports = await lostReportsCollection.find(filter).sort({ _id: -1 }).toArray();
+        res.send(reports);
+      } catch (err) {
+        console.error(err);
+        res.status(500).send("Failed to fetch lost reports");
+      }
+    });
+
+    app.get("/lostreports/:id", async (req, res) => {
+      const { id } = req.params;
+      try {
+        const filter = { _id: new ObjectId(id) };
+        const report = await lostReportsCollection.findOne(filter);
+        if (!report) return res.status(404).send("Lost report not found");
+        res.send(report);
+      } catch (err) {
+        console.error(err);
+        res.status(400).send("Invalid report id");
+      }
+    });
+
+    app.post("/lostreports", async (req, res) => {
+      const report = req.body;
+      if (!report.title || !report.category || !report.description || !report.locationLost || !report.userEmail) {
+        return res.status(400).send("Missing required fields");
+      }
+      const newReport = {
+        ...report,
+        status: report.status || "Active",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        __v: 0,
+      };
+      const result = await lostReportsCollection.insertOne(newReport);
+      const created = await lostReportsCollection.findOne({ _id: result.insertedId });
+      res.status(201).send(created);
+    });
+
+    app.put("/lostreports/:id", async (req, res) => {
+      const { id } = req.params;
+      const update = req.body;
+      try {
+        const filter = { _id: new ObjectId(id) };
+        const updateDoc = { $set: { ...update, updatedAt: new Date() } };
+        const result = await lostReportsCollection.findOneAndUpdate(filter, updateDoc, { returnDocument: "after" });
+        if (!result.value) return res.status(404).send("Lost report not found");
+        res.send(result.value);
+      } catch (err) {
+        console.error(err);
+        res.status(400).send("Invalid report id");
+      }
+    });
+
+    app.delete("/lostreports/:id", async (req, res) => {
+      const { id } = req.params;
+      try {
+        const filter = { _id: new ObjectId(id) };
+        const result = await lostReportsCollection.deleteOne(filter);
+        if (result.deletedCount === 0) return res.status(404).send("Lost report not found");
+        res.send({ ok: true });
+      } catch (err) {
+        console.error(err);
+        res.status(400).send("Invalid report id");
+      }
+    });
+
+    // -----------------------
+    // LINKING LOST REPORTS TO ITEMS
+    // -----------------------
+    // Link a lost report to a found item
+    app.post("/link", async (req, res) => {
+      const { reportId, itemId } = req.body;
+
+      if (!reportId || !itemId) {
+        return res.status(400).send("Both reportId and itemId are required");
+      }
+
+      try {
+        // Check if report exists and is not already linked
+        const report = await lostReportsCollection.findOne({ _id: new ObjectId(reportId) });
+        if (!report) return res.status(404).send("Lost report not found");
+        if (report.linkedItemId) {
+          return res.status(400).send("This report is already linked to an item");
+        }
+
+        // Check if item exists and is not already linked
+        const item = await itemsCollection.findOne({ _id: new ObjectId(itemId) });
+        if (!item) return res.status(404).send("Item not found");
+        if (item.linkedReportId) {
+          return res.status(400).send("This item is already linked to a report");
+        }
+
+        // Link both records
+        await lostReportsCollection.updateOne(
+          { _id: new ObjectId(reportId) },
+          {
+            $set: {
+              linkedItemId: itemId,
+              linkedAt: new Date(),
+              updatedAt: new Date()
+            }
+          }
+        );
+
+        await itemsCollection.updateOne(
+          { _id: new ObjectId(itemId) },
+          {
+            $set: {
+              linkedReportId: reportId,
+              linkedAt: new Date(),
+              updatedAt: new Date()
+            }
+          }
+        );
+
+        res.status(200).json({
+          success: true,
+          message: "Successfully linked report to item",
+          reportId,
+          itemId
+        });
+      } catch (err) {
+        console.error(err);
+        res.status(500).send("Failed to link report and item");
+      }
+    });
+
+    // Unlink a lost report from a found item
+    app.post("/unlink", async (req, res) => {
+      const { reportId, itemId } = req.body;
+
+      if (!reportId || !itemId) {
+        return res.status(400).send("Both reportId and itemId are required");
+      }
+
+      try {
+        // Unlink both records
+        await lostReportsCollection.updateOne(
+          { _id: new ObjectId(reportId) },
+          {
+            $unset: { linkedItemId: "", linkedAt: "" },
+            $set: { updatedAt: new Date() }
+          }
+        );
+
+        await itemsCollection.updateOne(
+          { _id: new ObjectId(itemId) },
+          {
+            $unset: { linkedReportId: "", linkedAt: "" },
+            $set: { updatedAt: new Date() }
+          }
+        );
+
+        res.status(200).json({
+          success: true,
+          message: "Successfully unlinked report from item"
+        });
+      } catch (err) {
+        console.error(err);
+        res.status(500).send("Failed to unlink report and item");
+      }
+    });
+
+    // Get linked item for a report
+    app.get("/lostreports/:id/linked-item", async (req, res) => {
+      const { id } = req.params;
+      try {
+        const report = await lostReportsCollection.findOne({ _id: new ObjectId(id) });
+        if (!report) return res.status(404).send("Lost report not found");
+
+        if (!report.linkedItemId) {
+          return res.status(200).json(null);
+        }
+
+        const item = await itemsCollection.findOne({ _id: new ObjectId(report.linkedItemId) });
+        res.status(200).json(item);
+      } catch (err) {
+        console.error(err);
+        res.status(500).send("Failed to fetch linked item");
+      }
+    });
+
+    // Get linked report for an item
+    app.get("/items/:id/linked-report", async (req, res) => {
+      const { id } = req.params;
+      try {
+        const item = await itemsCollection.findOne({ _id: new ObjectId(id) });
+        if (!item) return res.status(404).send("Item not found");
+
+        if (!item.linkedReportId) {
+          return res.status(200).json(null);
+        }
+
+        const report = await lostReportsCollection.findOne({ _id: new ObjectId(item.linkedReportId) });
+        res.status(200).json(report);
+      } catch (err) {
+        console.error(err);
+        res.status(500).send("Failed to fetch linked report");
       }
     });
 

@@ -12,6 +12,10 @@ import AuthorityCreatePage from "../../features/authority/pages/AuthorityCreateP
 import AuthorityUpdatePage from "../../features/authority/pages/AuthorityUpdatePage";
 import ItemFeed from "../../features/items/pages/ItemFeed";
 import ItemDetail from "../../features/items/pages/ItemDetail";
+import AuthorityLostReportsPage from "../../features/authority/pages/lost_reports/AuthorityLostReportsPage";
+import MyLostReportsPage from "../../features/lost_reports/pages/MyLostReportsPage";
+import LostReportCreatePage from "../../features/lost_reports/pages/LostReportCreatePage";
+import LostReportUpdatePage from "../../features/lost_reports/pages/LostReportUpdatePage";
 
 
 const router = createBrowserRouter([
@@ -36,6 +40,10 @@ const router = createBrowserRouter([
                 path: 'items/update/:id',    // /dashboard/items/update/123
                 element: <AuthorityUpdatePage />
             },
+            {
+                path: 'lost-reports',        // /dashboard/lost-reports
+                element: <AuthorityLostReportsPage />
+            },
         ]
     },
     {
@@ -50,6 +58,18 @@ const router = createBrowserRouter([
             {
                 path: 'items/:id',
                 element: <ItemDetail />,
+            },
+            {
+                path: 'lost-reports',
+                element: <MyLostReportsPage />,
+            },
+            {
+                path: 'lost-reports/create',
+                element: <LostReportCreatePage />,
+            },
+            {
+                path: 'lost-reports/update/:id',
+                element: <LostReportUpdatePage />,
             },
         ]
     },

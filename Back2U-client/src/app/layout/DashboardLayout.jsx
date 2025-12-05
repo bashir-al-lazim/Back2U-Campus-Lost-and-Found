@@ -87,6 +87,12 @@ const DashboardLayout = () => {
                                     Authority Intake & Catalog
                                 </NavLink>
                             </li>
+                            <li>
+                                <NavLink to="/dashboard/lost-reports">
+                                    <MdReport />
+                                    Lost Reports (Matching)
+                                </NavLink>
+                            </li>
                         </>
                     )}
 

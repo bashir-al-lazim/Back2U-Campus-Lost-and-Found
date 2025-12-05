@@ -41,6 +41,7 @@ const Nav = () => {
             <ul tabIndex={0} className="menu menu-sm dropdown-content mt-3 z-[1] -left-2 p-2 bg-transparent w-max gap-2 font-medium transition-all">
               <NavLink to='/' className={({ isActive }) => isActive ? "px-5 py-2 bg-base-100 border-[0.1rem] border-yellow-400 rounded-lg" : "px-5 py-2 bg-base-100 border-[0.1rem] border-b-[#898888] hover:text-[#898888] border-transparent"}>Home</NavLink>
               <NavLink to='/app/items' className={({ isActive }) => isActive ? "px-5 py-2 bg-base-100 border-[0.1rem] border-yellow-400 rounded-lg" : "px-5 py-2 bg-base-100 border-[0.1rem] border-b-[#898888] hover:text-[#898888] border-transparent"}>Items</NavLink>
+              <NavLink to='/app/lost-reports' className={({ isActive }) => isActive ? "px-5 py-2 bg-base-100 border-[0.1rem] border-yellow-400 rounded-lg" : "px-5 py-2 bg-base-100 border-[0.1rem] border-b-[#898888] hover:text-[#898888] border-transparent"}>My Lost Reports</NavLink>
             </ul>
           </div>
           <div className="flex items-center gap-1">
@@ -52,6 +53,7 @@ const Nav = () => {
           <ul className="font-medium gap-4">
             <NavLink to="/" className={pages}>Home</NavLink>
             <NavLink to='/app/items' className={pages}>Items</NavLink>
+            <NavLink to='/app/lost-reports' className={pages}>My Lost Reports</NavLink>
           </ul>
         </div>
         <div id="nav-btn" className="flex gap-4 items-center navbar-end">
