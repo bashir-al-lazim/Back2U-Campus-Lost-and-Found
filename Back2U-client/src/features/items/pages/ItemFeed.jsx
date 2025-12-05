@@ -88,9 +88,9 @@ const ItemFeed = () => {
     <div className="item-feed">
       <div className="container">
         {/* Header */}
-        <div className="feed-header pt-16">
-          <h1>Lost & Found Items</h1>
-          <p className="subtitle">Browse through items found on campus</p>
+        <div className="text-5xl text-center pt-16">
+          <h1 className='font-semibold pb-4'>Lost & Found Items</h1>
+          <p className="subtitle pb-4">Browse through items found on campus</p>
         </div>
 
         {/* Filter Bar */}

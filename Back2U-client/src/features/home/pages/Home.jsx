@@ -1,23 +1,11 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState } from "react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar
 } from "recharts";
-import ShareActions from "../../post_sharing/components/ShareActions";
-import MiniFlyer from "../../post_sharing/components/MiniFlyer";
-
-const demoItem = {
-  _id: "demo123",
-  title: "Black Leather Wallet",
-  category: "Accessories",
-  status: "Open",
-  photoUrl: "https://images.unsplash.com/photo-1512496015851-a90fb38ba796?w=1200",
-  date: "2025-11-10T09:00:00Z"
-};
 
 const Home = () => {
   const [analytics, setAnalytics] = useState(null);
   const [monthlyData, setMonthlyData] = useState(null);
-  const flyerRef = useRef(null);
 
   useEffect(() => {
     const fetchAnalytics = async () => {
@@ -48,7 +36,7 @@ const Home = () => {
     <div className="min-h-screen pt-32">
       {/* Analytics Section */}
       <div className="container mx-auto px-4 pt-20 pb-16">
-        <h1 className="text-3xl font-bold text-center mb-8 text-gray-800">
+        <h1 className="text-5xl font-semibold text-center mb-8 text-gray-800">
           Analytics
         </h1>
 
@@ -131,12 +119,6 @@ const Home = () => {
             </div>
           </div>
         )}
-
-        {/* Share Button Section */}
-        <div className="mt-20">
-          <ShareActions item={demoItem} flyerRef={flyerRef} />
-          <MiniFlyer ref={flyerRef} item={demoItem} />
-        </div>
       </div>
     </div>
   );

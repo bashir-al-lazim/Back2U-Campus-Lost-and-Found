@@ -1,10 +1,12 @@
 // ========================
 // ITEM DETAIL VIEW
 // ========================
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import '../styles/ItemDetail.css'
+import ShareActions from '../../post_sharing/components/ShareActions';
+import MiniFlyer from '../../post_sharing/components/MiniFlyer';
 
 const ItemDetail = () => {
   const { id } = useParams();
@@ -12,6 +14,8 @@ const ItemDetail = () => {
   const [item, setItem] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  const flyerRef = useRef(null);
 
   useEffect(() => {
     fetchItemDetail();
@@ -25,7 +29,7 @@ const ItemDetail = () => {
       // Call backend API
       const response = await fetch(`http://localhost:5000/api/items/${id}`);
       const data = await response.json();
-      
+
       if (data.success) {
         setItem(data.data);
       } else {
@@ -77,10 +81,15 @@ const ItemDetail = () => {
     <div className="item-detail">
       <div className="container">
         {/* Back Button */}
-        <button className="btn btn-outline btn-sm back-btn mt-12" onClick={() => navigate(-1)}>
-          ← Back
-        </button>
-
+        <div className='flex  mt-12 gap-6'>
+          <button className="btn btn-outline btn-md back-btn" onClick={() => navigate(-1)}>
+            ← Back
+          </button>
+          <div>
+            <ShareActions item={item} flyerRef={flyerRef} />
+            <MiniFlyer ref={flyerRef} item={item} />
+          </div>
+        </div>
         <div className="detail-grid">
           {/* Image Section */}
           <div className="detail-image-section">

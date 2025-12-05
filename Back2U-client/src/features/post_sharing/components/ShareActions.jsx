@@ -38,7 +38,7 @@ const ShareActions = ({ item, flyerRef }) => {
     }
 
     return (
-        <div className="dropdown dropdown-center ml-82">
+        <div className="dropdown dropdown-center">
             <button className="btn btn-secondary" tabIndex={0}>Share</button>
             <ul className="dropdown-content z-[1] mt-1 menu p-2 shadow bg-base-100 rounded-box gap-1 w-36" tabIndex={0}>
                 <li className="border-b border-b-gray-300 rounded-xl"><button onClick={copyMsg}>Copy link</button></li>

@@ -61,9 +61,9 @@ export default function MyLostReportsPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-semibold">My Lost Reports</h2>
+    <div className="container mx-auto py-8">
+      <div className="flex justify-between items-center mb-6 pt-32">
+        <h2 className="text-5xl font-semibold">My Lost Reports</h2>
         <Link
           to="/app/lost-reports/create"
           className="bg-black text-white px-4 py-2 rounded hover:bg-gray-800"
@@ -73,7 +73,7 @@ export default function MyLostReportsPage() {
       </div>
 
       {reports.length === 0 ? (
-        <div className="text-center py-12 bg-gray-50 rounded-lg">
+        <div className="text-center py-12 rounded-lg">
           <p className="text-gray-500 mb-4">You haven't filed any lost reports yet.</p>
           <Link
             to="/app/lost-reports/create"

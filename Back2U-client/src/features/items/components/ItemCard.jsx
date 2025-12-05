@@ -1,14 +1,16 @@
 // ========================
 // ITEM CARD COMPONENT
 // ========================
-import React from 'react';
 import { format } from 'date-fns';
 import '../styles/ItemCard.css';
 
+
 const ItemCard = ({ item, onClick }) => {
+
   const formatDate = (date) => {
     return format(new Date(date), 'MMM dd, yyyy');
   };
+
 
   const getStatusClass = (status) => {
     return `badge badge-${status.toLowerCase()}`;

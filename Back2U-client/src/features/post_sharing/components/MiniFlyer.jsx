@@ -92,7 +92,7 @@ const MiniFlyer = React.forwardRef(function MiniFlyer({ item }, frameRef) {
     <div class="info">
       <div class="box">
         <div class="label">Listed at</div>
-        <div>${safe(item.date || "—")}</div>
+        <div>${safe(item.dateFound || "—")}</div>
       </div>
       <div class="box">
         <div class="label">Tag / ID</div>
