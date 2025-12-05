@@ -100,6 +100,7 @@ export default function AuthorityCatalogPage() {
                 <th>Category</th>
                 <th>Location</th>
                 <th>Internal Tag</th>
+                <th>Status</th>
                 <th style={{ width: 160 }}>Actions</th>
               </tr>
             </thead>
@@ -118,6 +119,15 @@ export default function AuthorityCatalogPage() {
                   <td>{item.category}</td>
                   <td>{item.locationText}</td>
                   <td>{item.internalTag}</td>
+                  <td>
+                    {item.linkedReportId ? (
+                      <span className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-800">
+                        🔗 Linked
+                      </span>
+                    ) : (
+                      <span className="text-gray-400 text-xs">Not linked</span>
+                    )}
+                  </td>
                   <td className="flex gap-2">
                     <button
                       type="button"

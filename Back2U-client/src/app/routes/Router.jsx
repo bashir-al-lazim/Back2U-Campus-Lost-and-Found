@@ -10,6 +10,12 @@ import AppLayout from "../layout/AppLayout";
 import AuthorityCatalogPage from "../../features/authority/pages/AuthorityCatalogPage";
 import AuthorityCreatePage from "../../features/authority/pages/AuthorityCreatePage";
 import AuthorityUpdatePage from "../../features/authority/pages/AuthorityUpdatePage";
+import ItemFeed from "../../features/items/pages/ItemFeed";
+import ItemDetail from "../../features/items/pages/ItemDetail";
+import AuthorityLostReportsPage from "../../features/authority/pages/lost_reports/AuthorityLostReportsPage";
+import MyLostReportsPage from "../../features/lost_reports/pages/MyLostReportsPage";
+import LostReportCreatePage from "../../features/lost_reports/pages/LostReportCreatePage";
+import LostReportUpdatePage from "../../features/lost_reports/pages/LostReportUpdatePage";
 
 
 const router = createBrowserRouter([
@@ -34,6 +40,10 @@ const router = createBrowserRouter([
                 path: 'items/update/:id',    // /dashboard/items/update/123
                 element: <AuthorityUpdatePage />
             },
+            {
+                path: 'lost-reports',        // /dashboard/lost-reports
+                element: <AuthorityLostReportsPage />
+            },
         ]
     },
     {
@@ -41,7 +51,26 @@ const router = createBrowserRouter([
         element: <PrivateRoute><AppLayout /></PrivateRoute>,
         errorElement: <ErrorPage />,
         children: [
-
+            {
+                path: 'items',
+                element: <ItemFeed />,
+            },
+            {
+                path: 'items/:id',
+                element: <ItemDetail />,
+            },
+            {
+                path: 'lost-reports',
+                element: <MyLostReportsPage />,
+            },
+            {
+                path: 'lost-reports/create',
+                element: <LostReportCreatePage />,
+            },
+            {
+                path: 'lost-reports/update/:id',
+                element: <LostReportUpdatePage />,
+            },
         ]
     },
     {
@@ -54,7 +83,7 @@ const router = createBrowserRouter([
                 element: <Home />,
             },
             {
-                path: '/login',
+                path: 'login',
                 element: <SignInUp />,
             },
         ]
