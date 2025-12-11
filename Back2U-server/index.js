@@ -3,16 +3,13 @@ const cors = require("cors");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 require("dotenv").config();
 
-
 // initialization
 const app = express();
 const port = process.env.PORT || 5000;
 
-
 // middleware
 app.use(cors());
 app.use(express.json());
-
 
 // MongoDB connection URI
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.SECRET_KEY}@back2u.slzfoxx.mongodb.net/?appName=Back2U`;
@@ -25,16 +22,13 @@ const client = new MongoClient(uri, {
   },
 });
 
-
-
 async function run() {
   try {
-
     const db = client.db("back2uDB");
     const itemsCollection = db.collection("items");
     const lostReportsCollection = db.collection("lostreports");
     const authorityCollection = db.collection("authorities");
-
+    const claimsCollection = db.collection("claims");
 
     // -----------------------
     // AUTHORITY ROUTE
@@ -53,7 +47,6 @@ async function run() {
       }
     });
 
-
     // -----------------------
     // ITEMS CRUD
     // -----------------------
@@ -61,7 +54,7 @@ async function run() {
       const items = await itemsCollection.find().sort({ _id: -1 }).toArray();
       res.send(items);
     });
-
+       //create items
     app.post("/items", async (req, res) => {
       const item = req.body;
       if (!item.title || !item.category || !item.description || !item.locationText) {
@@ -118,7 +111,7 @@ async function run() {
         res.status(400).send('Invalid item id');
       }
     });
-
+  // DELETE item
     app.delete("/items/:id", async (req, res) => {
       const { id } = req.params;
       try {
@@ -431,12 +424,9 @@ async function run() {
       }
     });
 
-
     // ========================
     // ITEMS ROUTES (Item Discovery Feature)
     // ========================
-
-    // Get all items with filters (keyword, category, date, status)
     app.get('/api/items', async (req, res) => {
       try {
         const {
@@ -449,10 +439,8 @@ async function run() {
           limit = 12,
         } = req.query;
 
-        // Build query
         const query = {};
 
-        // Keyword search (title or description)
         if (keyword) {
           query.$or = [
             { title: { $regex: keyword, $options: 'i' } },
@@ -460,17 +448,14 @@ async function run() {
           ];
         }
 
-        // Category filter
         if (category && category !== 'All') {
           query.category = category;
         }
 
-        // Status filter
         if (status && status !== 'All') {
           query.status = status;
         }
 
-        // Date range filter
         if (dateFrom || dateTo) {
           query.dateFound = {};
           if (dateFrom) {
@@ -483,11 +468,9 @@ async function run() {
           }
         }
 
-        // Pagination
         const skip = (page - 1) * limit;
         const limitNum = parseInt(limit);
 
-        // Execute query - sort by newest first
         const items = await itemsCollection
           .find(query)
           .sort({ createdAt: -1 })
@@ -495,7 +478,6 @@ async function run() {
           .skip(skip)
           .toArray();
 
-        // Get total count
         const total = await itemsCollection.countDocuments(query);
 
         res.status(200).json({
@@ -516,7 +498,7 @@ async function run() {
           error: error.message,
         });
       }
-    })
+    });
 
     // Get single item by ID
     app.get('/api/items/:id', async (req, res) => {
@@ -551,15 +533,395 @@ async function run() {
           error: error.message,
         });
       }
-    })
+    });
+
+    // ========================
+    // CLAIMS MANAGEMENT ROUTES-------(##4)-loba
+    // ========================
+
+    // POST /claims - Student creates a new claim
+    app.post('/claims', async (req, res) => {
+      const claimData = req.body;
+
+      if (!claimData.itemId || !claimData.claimantEmail || (!claimData.proofText && !claimData.proofPhotoUrl)) {
+        return res.status(400).json({ message: 'Missing required fields (itemId, claimantEmail, and at least one proof).' });
+      }
+
+      try {
+       
+        const item = await itemsCollection.findOne({ _id: new ObjectId(claimData.itemId) });
+        if (!item) {
+          return res.status(404).json({ message: 'Item not found or is no longer claimable.' });
+        }
+
+        
+        const status = (item.status || 'Open').trim().toLowerCase();
+        if (status !== 'open') {
+          return res.status(404).json({ message: 'Item not found or is no longer claimable.' });
+        }
+
+
+        const newClaim = {
+          itemId: claimData.itemId,
+          itemTitle: item.title,
+          claimantEmail: claimData.claimantEmail,
+          proofText: claimData.proofText || '',
+          proofPhotoUrl: claimData.proofPhotoUrl || '',
+          status: 'Pending', 
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+
+        const result = await claimsCollection.insertOne(newClaim);
+        res.status(201).json({
+          success: true,
+          message: 'Claim submitted successfully. Waiting for staff review.',
+          claimId: result.insertedId
+        });
+      } catch (error) {
+        console.error('Error submitting claim:', error);
+        res.status(500).json({ message: 'Failed to submit claim.' });
+      }
+    });
+
+    // NEW: POST /items/:itemId/claims  <-- used by StudentClaimPage
+    app.post('/items/:itemId/claims', async (req, res) => {
+      const { itemId } = req.params;
+      const {
+        claimantEmail,
+        claimantName, 
+        proofText,
+        proofPhotoUrl,
+      } = req.body;
+
+      // 0) Basic validation
+      if (!itemId || !claimantEmail || (!proofText && !proofPhotoUrl)) {
+        return res.status(400).json({
+          message:
+            'Missing required fields (itemId param, claimantEmail, and at least one proof).',
+        });
+      }
+
+      try {
+        // 1) Verify item exists
+        let item = null;
+
+        if (ObjectId.isValid(itemId)) {
+          item = await itemsCollection.findOne({ _id: new ObjectId(itemId) });
+        }
+        if (!item) {
+          
+          item = await itemsCollection.findOne({ _id: itemId });
+        }
+
+        if (!item) {
+         
+          return res.status(404).json({
+            message: 'Item not found.',
+          });
+        }
+
+        // 2) Check if this student already has a pending claim for this item
+        const existingClaim = await claimsCollection.findOne({
+          itemId: String(itemId),
+          claimantEmail,
+          status: 'Pending',
+        });
+
+        if (existingClaim) {
+          return res.status(400).json({
+            message: 'You already have a pending claim for this item.',
+          });
+        }
+
+        // 3) Enforce EXACTLY ONE proof (text XOR photo)
+        const text = (proofText || '').trim();
+        const photo = (proofPhotoUrl || '').trim();
+
+        if (!text && !photo) {
+          return res.status(400).json({
+            message: 'Provide exactly one proof: text OR photo.',
+          });
+        }
+
+        if (text && photo) {
+          return res.status(400).json({
+            message: 'Provide exactly one proof: text OR photo (not both).',
+          });
+        }
+
+        // 4) Create the claim
+        const newClaim = {
+          itemId: String(itemId),
+          itemTitle: item.title,
+          claimantEmail,
+          claimantName: claimantName || null,
+          proofText: text || '',
+          proofPhotoUrl: photo || '',
+          status: 'Pending',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+
+        const result = await claimsCollection.insertOne(newClaim);
+
+        return res.status(201).json({
+          success: true,
+          message: 'Claim submitted successfully. Waiting for staff review.',
+          claimId: result.insertedId,
+        });
+      } catch (error) {
+        console.error('Error submitting claim via /items/:itemId/claims:', error);
+        return res.status(500).json({ message: 'Failed to submit claim.' });
+      }
+    });
+
+
+
+    // GET /claims - Staff gets all claims, Student gets claims by email
+    app.get('/claims', async (req, res) => {
+      try {
+        const { email } = req.query; // Used by student for 'My Claims'
+
+        let filter = {};
+        if (email) {
+      
+          filter.claimantEmail = email;
+        } else {
+          
+          filter.status = { $in: ["Pending", "Accepted", "Rejected"] };
+        }
+
+        const claims = await claimsCollection.find(filter).sort({ createdAt: -1 }).toArray();
+        res.status(200).json(claims);
+      } catch (error) {
+        console.error('Error fetching claims:', error);
+        res.status(500).json({ message: 'Failed to fetch claims.' });
+      }
+    });
+
+    // GET /claims/:id - Get single claim details
+    app.get('/claims/:id', async (req, res) => {
+      const { id } = req.params;
+      try {
+        const claim = await claimsCollection.findOne({ _id: new ObjectId(id) });
+        if (!claim) {
+          return res.status(404).json({ message: 'Claim not found.' });
+        }
+        res.status(200).json(claim);
+      } catch (error) {
+        console.error('Error fetching claim details:', error);
+        res.status(400).json({ message: 'Invalid claim ID.' });
+      }
+    });
+
+    // PUT /claims/:id/accept - Staff accepts a claim
+    app.put('/claims/:id/accept', async (req, res) => {
+      const { id } = req.params;
+
+      if (!ObjectId.isValid(id)) {
+        return res.status(400).json({ message: 'Invalid claim ID.' });
+      }
+
+      try {
+        const _id = new ObjectId(id);
+
+        // 1) Find the claim first
+        const claim = await claimsCollection.findOne({ _id });
+
+        if (!claim) {
+          return res.status(404).json({ message: 'Claim not found.' });
+        }
+
+        if (claim.status !== 'Pending') {
+          return res
+            .status(400)
+            .json({ message: `Cannot accept claim with status "${claim.status}".` });
+        }
+
+        // 2) Generate a 6-digit OTP as string
+        const otp = String(Math.floor(100000 + Math.random() * 900000));
+
+        const updateDoc = {
+          $set: {
+            status: 'Accepted',
+            otp: otp,
+            reviewedAt: new Date(),
+            updatedAt: new Date(),
+          }
+        };
+
+        const result = await claimsCollection.findOneAndUpdate(
+          { _id },
+          updateDoc,
+          { returnDocument: 'after' }
+        );
+
+        return res.json({
+          message: 'Claim accepted successfully.',
+          ...result.value
+        });
+
+      } catch (err) {
+        console.error(err);
+        return res.status(500).json({ message: 'Server error while accepting claim.' });
+      }
+    });
+
+    // PUT /claims/:id/reject - Staff rejects a claim
+    app.put('/claims/:id/reject', async (req, res) => {
+      const { id } = req.params;
+
+      if (!ObjectId.isValid(id)) {
+        return res.status(400).json({ message: 'Invalid claim ID.' });
+      }
+
+      try {
+        const _id = new ObjectId(id);
+
+        // 1) Find the claim first
+        const claim = await claimsCollection.findOne({ _id });
+
+        if (!claim) {
+          return res.status(404).json({ message: 'Claim not found.' });
+        }
+
+        if (claim.status !== 'Pending') {
+          return res
+            .status(400)
+            .json({ message: `Cannot reject claim with status "${claim.status}".` });
+        }
+
+        const updateDoc = {
+          $set: {
+            status: 'Rejected',
+            reviewedAt: new Date(),
+            updatedAt: new Date(),
+          },
+          $unset: { otp: "" }
+        };
+
+        const result = await claimsCollection.findOneAndUpdate(
+          { _id },
+          updateDoc,
+          { returnDocument: 'after' }
+        );
+
+        return res.status(200).json(result.value);
+      } catch (error) {
+        console.error('Error rejecting claim:', error);
+        res.status(500).json({ message: 'Failed to reject claim.' });
+      }
+    });
+
+    // PUT /claims/:id/cancel - Student cancels a claim
+    app.put('/claims/:id/cancel', async (req, res) => {
+      const { id } = req.params;
+      try {
+        const filter = { _id: new ObjectId(id), status: 'Pending' };
+        const updateDoc = {
+          $set: {
+            status: 'Cancelled',
+            updatedAt: new Date(),
+          },
+          $unset: { otp: "" }
+        };
+
+        const result = await claimsCollection.findOneAndUpdate(
+          filter,
+          updateDoc,
+          { returnDocument: 'after' }
+        );
+
+        const updated = result && (result.value ?? result);
+
+        if (!updated) {
+          return res
+            .status(404)
+            .json({ message: 'Claim not found or status is not Pending.' });
+        }
+
+        res.status(200).json(updated);
+      } catch (error) {
+        console.error('Error canceling claim:', error);
+        res.status(500).json({ message: 'Failed to cancel claim.' });
+      }
+    });
+
+    // -----------------------
+    // HANDOVER OTP VERIFICATION (##5)-loba
+    // -----------------------
+    app.post('/handover/verify-otp', async (req, res) => {
+      const { claimId, otp } = req.body;
+
+      if (!claimId || !otp) {
+        return res.status(400).json({ message: 'Claim ID and OTP are required.' });
+      }
+
+      try {
+        let claim = null;
+        if (ObjectId.isValid(claimId)) {
+          const objectId = new ObjectId(claimId);
+          claim = await claimsCollection.findOne({ _id: objectId });
+        }
+
+        
+        if (!claim) {
+          claim = await claimsCollection.findOne({ itemId: String(claimId) });
+        }
+
+        if (!claim) {
+          return res.status(400).json({
+            message: 'Verification failed. Invalid Claim ID or claim not found.'
+          });
+        }
+
+        //  Check status
+        if (claim.status !== 'Accepted') {
+          return res.status(400).json({
+            message: 'Verification failed. Claim is not Accepted.'
+          });
+        }
+
+        // Check OTP (string-safe compare)
+        if (String(claim.otp) !== String(otp)) {
+          return res.status(400).json({
+            message: 'Verification failed. Invalid OTP.'
+          });
+        }
+
+        // All good → mark as handed over
+        const updateDoc = {
+          $set: {
+            status: 'HandedOver',
+            resolvedAt: new Date(),
+            updatedAt: new Date(),
+            otpVerifiedAt: new Date(),
+          }
+        };
+
+        const result = await claimsCollection.findOneAndUpdate(
+          { _id: claim._id },
+          updateDoc,
+          { returnDocument: 'after' }
+        );
+
+        return res.json({
+          message: 'Item successfully handed over.',
+          ...result.value
+        });
+
+      } catch (err) {
+        console.error(err);
+        return res.status(500).json({ message: 'Server error verifying OTP.' });
+      }
+    });
+
 
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
-
-
-
   } catch (error) {
     console.error("❌ MongoDB connection failed:", error);
   }
