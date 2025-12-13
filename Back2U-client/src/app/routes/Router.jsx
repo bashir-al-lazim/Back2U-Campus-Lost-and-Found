@@ -16,6 +16,11 @@ import AuthorityLostReportsPage from "../../features/authority/pages/lost_report
 import MyLostReportsPage from "../../features/lost_reports/pages/MyLostReportsPage";
 import LostReportCreatePage from "../../features/lost_reports/pages/LostReportCreatePage";
 import LostReportUpdatePage from "../../features/lost_reports/pages/LostReportUpdatePage";
+import ClaimsListPage from "../../features/claims/pages/ClaimsListPage";
+import ClaimDetailsPage from "../../features/claims/pages/ClaimDetailsPage";
+import HandoverPage from "../../features/handover/pages/HandoverPage";
+import StudentClaimPage from "../../features/claims/pages/StudentClaimPage";
+import MyClaimsPage from "../../features/claims/pages/MyClaimsPage";
 import ModerationQueuePage from "../../features/moderation/pages/ModerationQueuePage";
 
 
@@ -44,6 +49,27 @@ const router = createBrowserRouter([
             {
                 path: 'lost-reports',        // /dashboard/lost-reports
                 element: <AuthorityLostReportsPage />
+            },
+
+              // FEATURE 4 – Claim Management (2 pages)
+            {
+                path: 'claims',              // /dashboard/claims
+                element: <ClaimsListPage />
+            },
+            {
+                path: 'claims/:id',          // /dashboard/claims/claimId
+                element: <ClaimDetailsPage />
+            },
+
+            // FEATURE 5 – Handover (1 page)
+            {
+                path: 'handover',            // /dashboard/handover
+                element: <HandoverPage />
+            },
+
+            {
+                path: 'my-claims',
+                element: <MyClaimsPage />
             },
             {
                 path: "moderation",
@@ -76,6 +102,11 @@ const router = createBrowserRouter([
             {
                 path: 'lost-reports/update/:id',
                 element: <LostReportUpdatePage />,
+            },
+
+            {
+                path: 'items/:id/claim',
+                element: <StudentClaimPage />
             },
         ]
     },

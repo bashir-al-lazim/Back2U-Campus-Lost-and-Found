@@ -25,6 +25,27 @@ Staff can **add**, **edit**, and **delete** records for found items.
 ---
 
 
+## 4  📜 Claim Management (Submission + Proof + Resolution)📌
+ OverviewCovers the complete claim process, from user submission and proof provision to staff decision and final resolution.
+ ### ✨ Key Functionality 
+ User ActionStaff ActionOutcome/ConstraintSubmitN/AMax 1 claim per item with 1 proof (photo/text). 
+ Creates Pending claim. 
+ Blocks duplicates.CancelN/AOnly possible if Pending.
+ Status switches to Canceled.N/AAccept/RejectDecision updates status.
+ Rejection requires a reason.N/AMark ResolvedFinal action after successful handover.
+
+
+
+### 5 🤚 Handover Management (Desk Hours + OTP + One Log)
+📌 Overview: Verifies the physical return of the item at the desk using a one-time password and logs the chain-of-custody.
+### Key Functionality:
+OTP Generation :Triggered upon 
+claim acceptance. 6-digit OTP visible to both parties.
+Verification: only staff can do this,Enters 6-digit OTP provided by User.
+Success: Correct OTP 
+Handover : verified + one log entry recorded.
+Failure: Wrong OTP 
+Error message; no verification.
 
 
 ## 9 🔗 Public Sharing: Link + Mini-flyer
