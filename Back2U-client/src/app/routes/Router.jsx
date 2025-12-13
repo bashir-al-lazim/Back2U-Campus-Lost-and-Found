@@ -16,15 +16,12 @@ import AuthorityLostReportsPage from "../../features/authority/pages/lost_report
 import MyLostReportsPage from "../../features/lost_reports/pages/MyLostReportsPage";
 import LostReportCreatePage from "../../features/lost_reports/pages/LostReportCreatePage";
 import LostReportUpdatePage from "../../features/lost_reports/pages/LostReportUpdatePage";
-<<<<<<< HEAD
 import ClaimsListPage from "../../features/claims/pages/ClaimsListPage";
 import ClaimDetailsPage from "../../features/claims/pages/ClaimDetailsPage";
 import HandoverPage from "../../features/handover/pages/HandoverPage";
 import StudentClaimPage from "../../features/claims/pages/StudentClaimPage";
 import MyClaimsPage from "../../features/claims/pages/MyClaimsPage";
-=======
 import ModerationQueuePage from "../../features/moderation/pages/ModerationQueuePage";
->>>>>>> origin/development
 
 
 const router = createBrowserRouter([
@@ -53,7 +50,6 @@ const router = createBrowserRouter([
                 path: 'lost-reports',        // /dashboard/lost-reports
                 element: <AuthorityLostReportsPage />
             },
-<<<<<<< HEAD
 
               // FEATURE 4 – Claim Management (2 pages)
             {
@@ -75,13 +71,11 @@ const router = createBrowserRouter([
                 path: 'my-claims',
                 element: <MyClaimsPage />
             },
-=======
             {
                 path: "moderation",
                 element: <ModerationQueuePage />,
             },
 
->>>>>>> origin/development
         ]
     },
     {
