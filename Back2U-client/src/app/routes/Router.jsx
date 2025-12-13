@@ -16,6 +16,7 @@ import AuthorityLostReportsPage from "../../features/authority/pages/lost_report
 import MyLostReportsPage from "../../features/lost_reports/pages/MyLostReportsPage";
 import LostReportCreatePage from "../../features/lost_reports/pages/LostReportCreatePage";
 import LostReportUpdatePage from "../../features/lost_reports/pages/LostReportUpdatePage";
+import ModerationQueuePage from "../../features/moderation/pages/ModerationQueuePage";
 
 
 const router = createBrowserRouter([
@@ -44,6 +45,11 @@ const router = createBrowserRouter([
                 path: 'lost-reports',        // /dashboard/lost-reports
                 element: <AuthorityLostReportsPage />
             },
+            {
+                path: "moderation",
+                element: <ModerationQueuePage />,
+            },
+
         ]
     },
     {

@@ -70,17 +70,12 @@ const DashboardLayout = () => {
                     {role === "staff" && (
                         <>
                             <li>
-                                <NavLink to="/dashboard/product-review-queue">
-                                    <HiMiniClipboardDocumentCheck />
-                                    Product Review
-                                </NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/dashboard/reported-contents">
+                                <NavLink to="/dashboard/moderation">
                                     <MdReport />
-                                    Reported Contents
+                                    Moderation Queue
                                 </NavLink>
                             </li>
+
                             <li>
                                 <NavLink to="/dashboard/items">
                                     <HiMiniClipboardDocumentCheck />
