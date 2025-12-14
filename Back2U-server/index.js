@@ -3,16 +3,13 @@ const cors = require("cors");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 require("dotenv").config();
 
-
 // initialization
 const app = express();
 const port = process.env.PORT || 5000;
 
-
 // middleware
 app.use(cors());
 app.use(express.json());
-
 
 // MongoDB connection URI
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.SECRET_KEY}@back2u.slzfoxx.mongodb.net/?appName=Back2U`;
@@ -25,23 +22,75 @@ const client = new MongoClient(uri, {
   },
 });
 
-
-
 async function run() {
   try {
-
     const db = client.db("back2uDB");
     const itemsCollection = db.collection("items");
     const lostReportsCollection = db.collection("lostreports");
     const authorityCollection = db.collection("authorities");
     const notificationsCollection = db.collection("notifications"); // ✅ Feature 6
+    const claimsCollection = db.collection("claims");
+    const commentsCollection = db.collection("comments");
+    const studentsCollection = db.collection("students");
+    const reportsCollection = db.collection("reports");
+
+    // -----------------------
+    // Helper functions
+    // -----------------------
+
+    // Check if a student is currently banned (by email)
+    // and auto-clear expired bans + warnings.
+    async function checkBanBeforeAction(email, res) {
+      if (!email) return false; // nothing to check
+
+      let student = await studentsCollection.findOne({ email });
+      if (!student) return false; // not in students ⇒ not banned
+
+      const now = new Date();
+
+      // --- Auto-clear expired ban + reset warnings ---
+      if (student.bannedUntil && new Date(student.bannedUntil) <= now) {
+        const updatedResult = await studentsCollection.findOneAndUpdate(
+          { email },
+          {
+            $set: {
+              banned: false,
+              warningsCount: 0,
+              updatedAt: now,
+            },
+            $unset: { bannedUntil: "" },
+          },
+          { returnDocument: "after" }
+        );
+
+        student =
+          updatedResult.value || {
+            ...student,
+            banned: false,
+            warningsCount: 0,
+            bannedUntil: null,
+          };
+      }
+
+      // --- Active ban? (bannedUntil still in the future) ---
+      if (student.bannedUntil && new Date(student.bannedUntil) > now) {
+        res.status(403).json({
+          success: false,
+          message: `You are temporarily banned until ${student.bannedUntil}.`,
+        });
+        return true;
+      }
+
+      return false;
+    }
+
 
 
     // FEATURE 13: TTL permanent delete after 30 days
     await itemsCollection.createIndex(
       { deletedAt: 1 },
       {
-        expireAfterSeconds: 60 * 60 * 24 * 30, 
+        expireAfterSeconds: 60 * 60 * 24 * 30,
         partialFilterExpression: { isDeleted: true, deletedAt: { $type: "date" } },
       }
     );
@@ -102,21 +151,480 @@ async function run() {
       }
     });
 
+    // ========================
+    // AUTH: SYNC USER ON LOGIN
+    // ========================
+    app.post("/auth/sync-user", async (req, res) => {
+      try {
+        const { email, name, photoURL } = req.body;
+
+        if (!email) {
+          return res.status(400).json({
+            success: false,
+            message: "email is required",
+          });
+        }
+
+        // 1) Check if this email is an authority (staff/admin)
+        const authority = await authorityCollection.findOne({ email });
+        if (authority) {
+          // Do NOT create a student record for authorities
+          return res.status(200).json({
+            success: true,
+            isAuthority: true,
+            role: authority.role,
+          });
+        }
+
+        // 2) Ensure there is a student doc (create if new, update if existing)
+        const now = new Date();
+
+        await studentsCollection.updateOne(
+          { email },
+          {
+            $set: {
+              name: name || email,
+              email,
+              photoURL: photoURL || "",
+              updatedAt: now,
+            },
+            $setOnInsert: {
+              studentId: null,
+              banned: false,
+              bannedUntil: null,
+              warningsCount: 0,
+              createdAt: now,
+            },
+          },
+          { upsert: true }
+        );
+
+        const student = await studentsCollection.findOne({ email });
+
+        res.status(200).json({
+          success: true,
+          isAuthority: false,
+          role: "student",
+          student,
+        });
+      } catch (err) {
+        console.error("Error syncing user:", err);
+        res.status(500).json({
+          success: false,
+          message: "Failed to sync user",
+          error: err.message,
+        });
+      }
+    });
+
+
+
+    // -----------------------
+    // PUBLIC COMMENTS
+    // -----------------------
+
+    // Get visible comments for an item
+    app.get('/api/items/:id/comments', async (req, res) => {
+      try {
+        const { id } = req.params;
+
+        if (!ObjectId.isValid(id)) {
+          return res.status(400).json({ success: false, message: 'Invalid item ID' });
+        }
+
+        const itemId = new ObjectId(id);
+
+        const comments = await commentsCollection
+          .find({ itemId, hidden: { $ne: true } })
+          .sort({ createdAt: 1 })   // oldest first
+          .toArray();
+
+        res.status(200).json({
+          success: true,
+          data: comments,
+        });
+      } catch (error) {
+        console.error('Error fetching comments:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Failed to fetch comments',
+          error: error.message,
+        });
+      }
+    });
+
+    // Create a new comment on an item
+    app.post('/api/items/:id/comments', async (req, res) => {
+      try {
+        const { id } = req.params;
+
+        if (!ObjectId.isValid(id)) {
+          return res.status(400).json({ success: false, message: 'Invalid item ID' });
+        }
+
+        const { text, author, mentions } = req.body;
+
+        if (!text || !author || !author.email || !author.name) {
+          return res.status(400).json({
+            success: false,
+            message: 'Missing required fields (text, author.name, author.email)',
+          });
+        }
+
+        //Ban check
+        const banned = await checkBanBeforeAction(author.email, res);
+        if (banned) return;
+
+        const now = new Date();
+        const newComment = {
+          itemId: new ObjectId(id),
+          text: text.trim(),
+          author: {
+            name: author.name,
+            email: author.email,
+            avatar: author.avatar || '',
+            role: author.role || 'student',
+          },
+          mentions: Array.isArray(mentions) ? mentions : [],
+          likes: [],
+          likesCount: 0,
+          hidden: false,
+          createdAt: now,
+          updatedAt: now,
+        };
+
+        const result = await commentsCollection.insertOne(newComment);
+        const created = await commentsCollection.findOne({ _id: result.insertedId });
+
+        res.status(201).json({
+          success: true,
+          data: created,
+        });
+      } catch (error) {
+        console.error('Error creating comment:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Failed to create comment',
+          error: error.message,
+        });
+      }
+    });
+
+    // Like/unlike a comment (toggle)
+    app.post('/api/comments/:id/like', async (req, res) => {
+      try {
+        const { id } = req.params;
+        const { userEmail } = req.body;
+
+        if (!ObjectId.isValid(id)) {
+          return res.status(400).json({ success: false, message: 'Invalid comment ID' });
+        }
+        if (!userEmail) {
+          return res.status(400).json({ success: false, message: 'userEmail is required' });
+        }
+
+        const commentId = new ObjectId(id);
+        const comment = await commentsCollection.findOne({ _id: commentId });
+        if (!comment) {
+          return res.status(404).json({ success: false, message: 'Comment not found' });
+        }
+
+        const alreadyLiked = (comment.likes || []).includes(userEmail);
+
+        const update = alreadyLiked
+          ? {
+            $pull: { likes: userEmail },
+            $inc: { likesCount: -1 },
+            $set: { updatedAt: new Date() },
+          }
+          : {
+            $addToSet: { likes: userEmail },
+            $inc: { likesCount: 1 },
+            $set: { updatedAt: new Date() },
+          };
+
+        // prevent going below zero
+        if (alreadyLiked && comment.likesCount <= 0) {
+          delete update.$inc;
+        }
+
+        const result = await commentsCollection.findOneAndUpdate(
+          { _id: commentId },
+          update,
+          { returnDocument: 'after' }
+        );
+
+        res.status(200).json({
+          success: true,
+          data: result.value,
+        });
+      } catch (error) {
+        console.error('Error toggling like:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Failed to toggle like',
+          error: error.message,
+        });
+      }
+    });
+
+
+    // Delete a comment (author can delete own; staff/admin can also delete)
+    app.delete('/api/comments/:id', async (req, res) => {
+      try {
+        const { id } = req.params;
+        const { userEmail, userRole } = req.body || {};
+
+        if (!ObjectId.isValid(id)) {
+          return res.status(400).json({ success: false, message: 'Invalid comment ID' });
+        }
+        if (!userEmail) {
+          return res.status(400).json({
+            success: false,
+            message: 'userEmail is required to delete a comment',
+          });
+        }
+
+        const commentId = new ObjectId(id);
+        const comment = await commentsCollection.findOne({ _id: commentId });
+        if (!comment) {
+          return res.status(404).json({ success: false, message: 'Comment not found' });
+        }
+
+        const isOwner = comment.author?.email === userEmail;
+        const isStaffOrAdmin = userRole === 'staff' || userRole === 'admin';
+
+        if (!isOwner && !isStaffOrAdmin) {
+          return res.status(403).json({ success: false, message: 'Not allowed to delete this comment' });
+        }
+
+        await commentsCollection.deleteOne({ _id: commentId });
+
+        res.status(200).json({ success: true });
+      } catch (error) {
+        console.error('Error deleting comment:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Failed to delete comment',
+          error: error.message,
+        });
+      }
+    });
+
+    // Hide / unhide a comment (used by both public UI + moderation)
+    app.patch('/api/comments/:id/hide', async (req, res) => {
+      try {
+        const { id } = req.params;
+        const { hidden = true } = req.body;
+
+        if (!ObjectId.isValid(id)) {
+          return res
+            .status(400)
+            .json({ success: false, message: 'Invalid comment ID' });
+        }
+
+        const commentId = new ObjectId(id);
+
+        // 1) Check if the comment actually exists
+        const existing = await commentsCollection.findOne({ _id: commentId });
+
+        if (!existing) {
+          // This is the ONLY place we should ever send 404 for this route
+          return res
+            .status(404)
+            .json({ success: false, message: 'Comment not found' });
+        }
+
+        const desiredHidden = !!hidden;
+
+        // 2) If it’s already in the desired state, just return it as success.
+        //    (Prevents your “Content was already removed” flow from being hit
+        //     when the comment is actually still there.)
+        if (!!existing.hidden === desiredHidden) {
+          return res.status(200).json({
+            success: true,
+            data: existing,
+          });
+        }
+
+        // 3) Update hidden flag
+        await commentsCollection.updateOne(
+          { _id: commentId },
+          { $set: { hidden: desiredHidden, updatedAt: new Date() } }
+        );
+
+        // 4) Fetch updated comment to return
+        const updated = await commentsCollection.findOne({ _id: commentId });
+
+        return res.status(200).json({
+          success: true,
+          data: updated || { ...existing, hidden: desiredHidden },
+        });
+      } catch (error) {
+        console.error('Error hiding/unhiding comment:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Failed to hide/unhide comment',
+          error: error.message,
+        });
+      }
+    });
+
+
+
+
+
+    // Edit a comment's text (ONLY author)
+    app.patch('/api/comments/:id', async (req, res) => {
+      try {
+        const { id } = req.params;
+        const { userEmail, text } = req.body || {};
+
+        if (!ObjectId.isValid(id)) {
+          return res
+            .status(400)
+            .json({ success: false, message: 'Invalid comment ID' });
+        }
+
+        if (!userEmail) {
+          return res.status(400).json({
+            success: false,
+            message: 'userEmail is required to edit a comment',
+          });
+        }
+
+        const trimmed = (text || '').trim();
+        if (!trimmed) {
+          return res.status(400).json({
+            success: false,
+            message: 'text is required',
+          });
+        }
+
+        const commentId = new ObjectId(id);
+
+        // 1) Make sure the comment exists
+        const existing = await commentsCollection.findOne({ _id: commentId });
+        if (!existing) {
+          return res
+            .status(404)
+            .json({ success: false, message: 'Comment not found' });
+        }
+
+        // 2) Only the author can edit
+        const isOwner = existing.author?.email === userEmail;
+        if (!isOwner) {
+          return res.status(403).json({
+            success: false,
+            message: 'Not allowed to edit this comment',
+          });
+        }
+
+        // 3) Update text + updatedAt, then return the updated doc
+        const now = new Date();
+        const result = await commentsCollection.findOneAndUpdate(
+          { _id: commentId },
+          {
+            $set: {
+              text: trimmed,
+              updatedAt: now,
+            },
+          },
+          { returnDocument: 'after' } // MongoDB Node driver v4 style
+        );
+
+        // We already know the comment existed; in normal cases value will be there.
+        const updatedDoc = result.value || {
+          ...existing,
+          text: trimmed,
+          updatedAt: now,
+        };
+
+        return res.status(200).json({
+          success: true,
+          data: updatedDoc,
+        });
+      } catch (error) {
+        console.error('Error editing comment:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Failed to edit comment',
+          error: error.message,
+        });
+      }
+    });
+
+    // Moderation: fetch a single comment by ID (including hidden ones)
+    app.get('/api/moderation/comments/:id', async (req, res) => {
+      try {
+        const { id } = req.params;
+
+        if (!id) {
+          return res
+            .status(400)
+            .json({ success: false, message: 'Comment ID is required' });
+        }
+
+        let filter;
+        if (ObjectId.isValid(id)) {
+          filter = {
+            $or: [
+              { _id: new ObjectId(id) },
+              { _id: id },
+            ],
+          };
+        } else {
+          filter = { _id: id };
+        }
+
+        const comment = await commentsCollection.findOne(filter);
+
+        if (!comment) {
+          return res
+            .status(404)
+            .json({ success: false, message: 'Comment not found' });
+        }
+
+        res.status(200).json({ success: true, data: comment });
+      } catch (error) {
+        console.error('Error fetching comment for moderation:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Failed to fetch comment for moderation',
+          error: error.message,
+        });
+      }
+    });
+
+
+
+
+
+
+
 
     // -----------------------
     // ITEMS CRUD
     // -----------------------
-    // FEATURE 13: hide soft-deleted items 
-    app.get("/items", async (req, res) => {
-      const items = await itemsCollection
-        .find({ isDeleted: { $ne: true } })
-        .sort({ _id: -1 })
-        .toArray();
+    // FEATURE 13: hide soft-deleted and hidden items 
+    app.get("/items", async (req, res) => {              //check for errors by feature testing and  is the expected data loading or missing something?,
+      try {                                             // I just removed the syntax error that was present
+        const items = await itemsCollection
+          .find({
+            isDeleted: { $ne: true },
+            hidden: { $ne: true }
+          })
+          .sort({ _id: -1 })
+          .toArray();
 
-      res.send(items);
+        res.send(items);
+      } catch (error) {
+        res.status(500).send({ message: "Error fetching items", error });
+      }
     });
 
 
+    //create items
     app.post("/items", async (req, res) => {
       const item = req.body;
       if (!item.title || !item.category || !item.description || !item.locationText) {
@@ -129,6 +637,7 @@ async function run() {
         location: item.location || item.locationText || "",
         dateFound: item.dateFound || new Date(),
         status: item.status || "Open",
+        hidden: false,              // NEW
         createdAt: new Date(),
         updatedAt: new Date(),
         __v: 0,
@@ -137,6 +646,7 @@ async function run() {
       const created = await itemsCollection.findOne({ _id: result.insertedId });
       res.status(201).send(created);
     });
+
 
     // UPDATE item
     app.put('/items/:id', async (req, res) => {
@@ -177,6 +687,7 @@ async function run() {
 
 
     //  FEATURE 13: SOFT DELETE 
+    // DELETE item
     app.delete("/items/:id", async (req, res) => {
       const { id } = req.params;
 
@@ -226,7 +737,8 @@ async function run() {
 
         const filter = {
           ...(userEmail ? { userEmail } : {}),
-          isDeleted: { $ne: true }   // ✅ NEW
+          isDeleted: { $ne: true },   // ✅ NEW         //check for errors by testing features, is the expected data loading or missing something?
+          hidden: { $ne: true }, // 🚫 do not return hidden lost reports in normal views
         };
 
         const reports = await lostReportsCollection
@@ -248,8 +760,8 @@ async function run() {
         const filter = { _id: new ObjectId(id) };
         const report = await lostReportsCollection.findOne({
           ...filter,
-          isDeleted: { $ne: true }   
-        }); 
+          isDeleted: { $ne: true }
+        });
 
         if (!report) return res.status(404).send("Lost report not found");
         res.send(report);
@@ -261,20 +773,31 @@ async function run() {
 
     app.post("/lostreports", async (req, res) => {
       const report = req.body;
+
+      // 🚫 Ban check (student by email)
+      if (report.userEmail) {
+        const banned = await checkBanBeforeAction(report.userEmail, res);
+        if (banned) return;
+      }
+
       if (!report.title || !report.category || !report.description || !report.locationLost || !report.userEmail) {
         return res.status(400).send("Missing required fields");
       }
+
       const newReport = {
         ...report,
         status: report.status || "Active",
+        hidden: false,          // 👈 start as visible
         createdAt: new Date(),
         updatedAt: new Date(),
         __v: 0,
       };
+
       const result = await lostReportsCollection.insertOne(newReport);
       const created = await lostReportsCollection.findOne({ _id: result.insertedId });
       res.status(201).send(created);
     });
+
 
     app.put("/lostreports/:id", async (req, res) => {
       const { id } = req.params;
@@ -330,7 +853,7 @@ async function run() {
         console.error(err);
         res.status(400).send("Invalid report id");
       }
-    });  
+    });
 
 
 
@@ -445,7 +968,7 @@ async function run() {
         const item = await itemsCollection.findOne({
           _id: new ObjectId(report.linkedItemId),
           isDeleted: { $ne: true }, //  don't return deleted linked items
-        });  
+        });
 
         res.status(200).json(item);
       } catch (err) {
@@ -572,12 +1095,9 @@ async function run() {
       }
     });
 
-
     // ========================
     // ITEMS ROUTES (Item Discovery Feature)
     // ========================
-
-    // Get all items with filters (keyword, category, date, status)
     app.get('/api/items', async (req, res) => {
       try {
         const {
@@ -590,13 +1110,11 @@ async function run() {
           limit = 12,
         } = req.query;
 
-        // Build query
         const query = {};
         //  FEATURE 13: exclude deleted items everywhere in discovery/share
         query.isDeleted = { $ne: true };
 
 
-        // Keyword search (title or description)
         if (keyword) {
           query.$or = [
             { title: { $regex: keyword, $options: 'i' } },
@@ -604,17 +1122,14 @@ async function run() {
           ];
         }
 
-        // Category filter
         if (category && category !== 'All') {
           query.category = category;
         }
 
-        // Status filter
         if (status && status !== 'All') {
           query.status = status;
         }
 
-        // Date range filter
         if (dateFrom || dateTo) {
           query.dateFound = {};
           if (dateFrom) {
@@ -626,12 +1141,11 @@ async function run() {
             query.dateFound.$lte = endDate;
           }
         }
+        query.hidden = { $ne: true };
 
-        // Pagination
         const skip = (page - 1) * limit;
         const limitNum = parseInt(limit);
 
-        // Execute query - sort by newest first
         const items = await itemsCollection
           .find(query)
           .sort({ createdAt: -1 })
@@ -639,7 +1153,6 @@ async function run() {
           .skip(skip)
           .toArray();
 
-        // Get total count
         const total = await itemsCollection.countDocuments(query);
 
         res.status(200).json({
@@ -660,7 +1173,7 @@ async function run() {
           error: error.message,
         });
       }
-    })
+    });
 
     // Get single item by ID
     app.get('/api/items/:id', async (req, res) => {
@@ -676,10 +1189,10 @@ async function run() {
         const item = await itemsCollection.findOne({
           _id: new ObjectId(id),
           isDeleted: { $ne: true }, //  hide deleted items from detail/share link
-        });  
+        });
 
 
-        if (!item) {
+        if (!item || item.hidden) {
           return res.status(404).json({
             success: false,
             message: 'Item not found',
@@ -698,7 +1211,968 @@ async function run() {
           error: error.message,
         });
       }
-    })
+    });
+
+    // ========================
+    // CLAIMS MANAGEMENT ROUTES-------(##4)-loba
+    // ========================
+
+    // POST /claims - Student creates a new claim
+    app.post('/claims', async (req, res) => {
+      const claimData = req.body;
+
+      if (!claimData.itemId || !claimData.claimantEmail || (!claimData.proofText && !claimData.proofPhotoUrl)) {
+        return res.status(400).json({ message: 'Missing required fields (itemId, claimantEmail, and at least one proof).' });
+      }
+
+      try {
+
+        const item = await itemsCollection.findOne({ _id: new ObjectId(claimData.itemId) });
+        if (!item) {
+          return res.status(404).json({ message: 'Item not found or is no longer claimable.' });
+        }
+
+
+        const status = (item.status || 'Open').trim().toLowerCase();
+        if (status !== 'open') {
+          return res.status(404).json({ message: 'Item not found or is no longer claimable.' });
+        }
+
+
+        const newClaim = {
+          itemId: claimData.itemId,
+          itemTitle: item.title,
+          claimantEmail: claimData.claimantEmail,
+          proofText: claimData.proofText || '',
+          proofPhotoUrl: claimData.proofPhotoUrl || '',
+          status: 'Pending',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+
+        const result = await claimsCollection.insertOne(newClaim);
+        res.status(201).json({
+          success: true,
+          message: 'Claim submitted successfully. Waiting for staff review.',
+          claimId: result.insertedId
+        });
+      } catch (error) {
+        console.error('Error submitting claim:', error);
+        res.status(500).json({ message: 'Failed to submit claim.' });
+      }
+    });
+
+    // NEW: POST /items/:itemId/claims  <-- used by StudentClaimPage
+    app.post('/items/:itemId/claims', async (req, res) => {
+      const { itemId } = req.params;
+      const {
+        claimantEmail,
+        claimantName,
+        proofText,
+        proofPhotoUrl,
+      } = req.body;
+
+      // 0) Basic validation
+      if (!itemId || !claimantEmail || (!proofText && !proofPhotoUrl)) {
+        return res.status(400).json({
+          message:
+            'Missing required fields (itemId param, claimantEmail, and at least one proof).',
+        });
+      }
+
+      try {
+        // 1) Verify item exists
+        let item = null;
+
+        if (ObjectId.isValid(itemId)) {
+          item = await itemsCollection.findOne({ _id: new ObjectId(itemId) });
+        }
+        if (!item) {
+
+          item = await itemsCollection.findOne({ _id: itemId });
+        }
+
+        if (!item) {
+
+          return res.status(404).json({
+            message: 'Item not found.',
+          });
+        }
+
+        // 2) Check if this student already has a pending claim for this item
+        const existingClaim = await claimsCollection.findOne({
+          itemId: String(itemId),
+          claimantEmail,
+          status: 'Pending',
+        });
+
+        if (existingClaim) {
+          return res.status(400).json({
+            message: 'You already have a pending claim for this item.',
+          });
+        }
+
+        // 3) Enforce EXACTLY ONE proof (text XOR photo)
+        const text = (proofText || '').trim();
+        const photo = (proofPhotoUrl || '').trim();
+
+        if (!text && !photo) {
+          return res.status(400).json({
+            message: 'Provide exactly one proof: text OR photo.',
+          });
+        }
+
+        if (text && photo) {
+          return res.status(400).json({
+            message: 'Provide exactly one proof: text OR photo (not both).',
+          });
+        }
+
+        // 4) Create the claim
+        const newClaim = {
+          itemId: String(itemId),
+          itemTitle: item.title,
+          claimantEmail,
+          claimantName: claimantName || null,
+          proofText: text || '',
+          proofPhotoUrl: photo || '',
+          status: 'Pending',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+
+        const result = await claimsCollection.insertOne(newClaim);
+
+        return res.status(201).json({
+          success: true,
+          message: 'Claim submitted successfully. Waiting for staff review.',
+          claimId: result.insertedId,
+        });
+      } catch (error) {
+        console.error('Error submitting claim via /items/:itemId/claims:', error);
+        return res.status(500).json({ message: 'Failed to submit claim.' });
+      }
+    });
+
+
+
+    // GET /claims - Staff gets all claims, Student gets claims by email
+    app.get('/claims', async (req, res) => {
+      try {
+        const { email } = req.query; // Used by student for 'My Claims'
+
+        let filter = {};
+        if (email) {
+
+          filter.claimantEmail = email;
+        } else {
+
+          filter.status = { $in: ["Pending", "Accepted", "Rejected"] };
+        }
+
+        const claims = await claimsCollection.find(filter).sort({ createdAt: -1 }).toArray();
+        res.status(200).json(claims);
+      } catch (error) {
+        console.error('Error fetching claims:', error);
+        res.status(500).json({ message: 'Failed to fetch claims.' });
+      }
+    });
+
+    // GET /claims/:id - Get single claim details
+    app.get('/claims/:id', async (req, res) => {
+      const { id } = req.params;
+      try {
+        const claim = await claimsCollection.findOne({ _id: new ObjectId(id) });
+        if (!claim) {
+          return res.status(404).json({ message: 'Claim not found.' });
+        }
+        res.status(200).json(claim);
+      } catch (error) {
+        console.error('Error fetching claim details:', error);
+        res.status(400).json({ message: 'Invalid claim ID.' });
+      }
+    });
+
+    // PUT /claims/:id/accept - Staff accepts a claim
+    app.put('/claims/:id/accept', async (req, res) => {
+      const { id } = req.params;
+
+      if (!ObjectId.isValid(id)) {
+        return res.status(400).json({ message: 'Invalid claim ID.' });
+      }
+
+      try {
+        const _id = new ObjectId(id);
+
+        // 1) Find the claim first
+        const claim = await claimsCollection.findOne({ _id });
+
+        if (!claim) {
+          return res.status(404).json({ message: 'Claim not found.' });
+        }
+
+        if (claim.status !== 'Pending') {
+          return res
+            .status(400)
+            .json({ message: `Cannot accept claim with status "${claim.status}".` });
+        }
+
+        // 2) Generate a 6-digit OTP as string
+        const otp = String(Math.floor(100000 + Math.random() * 900000));
+
+        const updateDoc = {
+          $set: {
+            status: 'Accepted',
+            otp: otp,
+            reviewedAt: new Date(),
+            updatedAt: new Date(),
+          }
+        };
+
+        const result = await claimsCollection.findOneAndUpdate(
+          { _id },
+          updateDoc,
+          { returnDocument: 'after' }
+        );
+
+        return res.json({
+          message: 'Claim accepted successfully.',
+          ...result.value
+        });
+
+      } catch (err) {
+        console.error(err);
+        return res.status(500).json({ message: 'Server error while accepting claim.' });
+      }
+    });
+
+    // PUT /claims/:id/reject - Staff rejects a claim
+    app.put('/claims/:id/reject', async (req, res) => {
+      const { id } = req.params;
+
+      if (!ObjectId.isValid(id)) {
+        return res.status(400).json({ message: 'Invalid claim ID.' });
+      }
+
+      try {
+        const _id = new ObjectId(id);
+
+        // 1) Find the claim first
+        const claim = await claimsCollection.findOne({ _id });
+
+        if (!claim) {
+          return res.status(404).json({ message: 'Claim not found.' });
+        }
+
+        if (claim.status !== 'Pending') {
+          return res
+            .status(400)
+            .json({ message: `Cannot reject claim with status "${claim.status}".` });
+        }
+
+        const updateDoc = {
+          $set: {
+            status: 'Rejected',
+            reviewedAt: new Date(),
+            updatedAt: new Date(),
+          },
+          $unset: { otp: "" }
+        };
+
+        const result = await claimsCollection.findOneAndUpdate(
+          { _id },
+          updateDoc,
+          { returnDocument: 'after' }
+        );
+
+        return res.status(200).json(result.value);
+      } catch (error) {
+        console.error('Error rejecting claim:', error);
+        res.status(500).json({ message: 'Failed to reject claim.' });
+      }
+    });
+
+    // PUT /claims/:id/cancel - Student cancels a claim
+    app.put('/claims/:id/cancel', async (req, res) => {
+      const { id } = req.params;
+      try {
+        const filter = { _id: new ObjectId(id), status: 'Pending' };
+        const updateDoc = {
+          $set: {
+            status: 'Cancelled',
+            updatedAt: new Date(),
+          },
+          $unset: { otp: "" }
+        };
+
+        const result = await claimsCollection.findOneAndUpdate(
+          filter,
+          updateDoc,
+          { returnDocument: 'after' }
+        );
+
+        const updated = result && (result.value ?? result);
+
+        if (!updated) {
+          return res
+            .status(404)
+            .json({ message: 'Claim not found or status is not Pending.' });
+        }
+
+        res.status(200).json(updated);
+      } catch (error) {
+        console.error('Error canceling claim:', error);
+        res.status(500).json({ message: 'Failed to cancel claim.' });
+      }
+    });
+
+    // -----------------------
+    // HANDOVER OTP VERIFICATION (##5)-loba
+    // -----------------------
+    app.post('/handover/verify-otp', async (req, res) => {
+      const { claimId, otp } = req.body;
+
+      if (!claimId || !otp) {
+        return res.status(400).json({ message: 'Claim ID and OTP are required.' });
+      }
+
+      try {
+        let claim = null;
+        if (ObjectId.isValid(claimId)) {
+          const objectId = new ObjectId(claimId);
+          claim = await claimsCollection.findOne({ _id: objectId });
+        }
+
+
+        if (!claim) {
+          claim = await claimsCollection.findOne({ itemId: String(claimId) });
+        }
+
+        if (!claim) {
+          return res.status(400).json({
+            message: 'Verification failed. Invalid Claim ID or claim not found.'
+          });
+        }
+
+        //  Check status
+        if (claim.status !== 'Accepted') {
+          return res.status(400).json({
+            message: 'Verification failed. Claim is not Accepted.'
+          });
+        }
+
+        // Check OTP (string-safe compare)
+        if (String(claim.otp) !== String(otp)) {
+          return res.status(400).json({
+            message: 'Verification failed. Invalid OTP.'
+          });
+        }
+
+        // All good → mark as handed over
+        const updateDoc = {
+          $set: {
+            status: 'HandedOver',
+            resolvedAt: new Date(),
+            updatedAt: new Date(),
+            otpVerifiedAt: new Date(),
+          }
+        };
+
+        const result = await claimsCollection.findOneAndUpdate(
+          { _id: claim._id },
+          updateDoc,
+          { returnDocument: 'after' }
+        );
+
+        return res.json({
+          message: 'Item successfully handed over.',
+          ...result.value
+        });
+
+      } catch (err) {
+        console.error(err);
+        return res.status(500).json({ message: 'Server error verifying OTP.' });
+      }
+    });
+
+
+
+    // -----------------------
+    // Feature 10 Moderation
+    // -----------------------
+    // Hide / unhide an item (for staff/admin via moderation)
+    app.patch('/api/items/:id/hide', async (req, res) => {
+      try {
+        const { id } = req.params;
+        const { hidden = true } = req.body;
+
+        const desiredHidden = !!hidden;
+
+        // Build a query that works whether _id is an ObjectId or a string
+        let query;
+        if (ObjectId.isValid(id)) {
+          query = {
+            $or: [
+              { _id: new ObjectId(id) }, // normal ObjectId-based docs
+              { _id: id },               // any legacy string _id docs
+            ],
+          };
+        } else {
+          // not a valid ObjectId: treat it as a plain string id
+          query = { _id: id };
+        }
+
+        // 1) Check if the item actually exists
+        const existing = await itemsCollection.findOne(query);
+
+        if (!existing) {
+          // This is the ONLY place we send 404 for this route
+          return res
+            .status(404)
+            .json({ success: false, message: 'Item not found' });
+        }
+
+        // 2) If it’s already in the desired state, just return it as success
+        if (!!existing.hidden === desiredHidden) {
+          return res.status(200).json({
+            success: true,
+            data: existing,
+          });
+        }
+
+        // 3) Update hidden flag using the exact _id we just found
+        await itemsCollection.updateOne(
+          { _id: existing._id },
+          { $set: { hidden: desiredHidden, updatedAt: new Date() } }
+        );
+
+        // 4) Fetch updated item to return
+        const updated = await itemsCollection.findOne({ _id: existing._id });
+
+        return res.status(200).json({
+          success: true,
+          data: updated || { ...existing, hidden: desiredHidden },
+        });
+      } catch (error) {
+        console.error('Error hiding/unhiding item:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Failed to hide/unhide item',
+          error: error.message,
+        });
+      }
+    });
+
+    // Hide / unhide a lost report (for staff/admin via moderation)
+    app.patch("/api/lostreports/:id/hide", async (req, res) => {
+      try {
+        const { id } = req.params;
+        const { hidden = true } = req.body;
+
+        const desiredHidden = !!hidden;
+
+        // Build a query that works whether _id is an ObjectId or a string
+        let query;
+        if (ObjectId.isValid(id)) {
+          query = {
+            $or: [
+              { _id: new ObjectId(id) }, // normal ObjectId-based docs
+              { _id: id },               // any legacy string _id docs
+            ],
+          };
+        } else {
+          // not a valid ObjectId: treat it as a plain string id
+          query = { _id: id };
+        }
+
+        // 1) Check if the lost report actually exists
+        const existing = await lostReportsCollection.findOne(query);
+
+        if (!existing) {
+          // This is the ONLY place we send 404 for this route
+          return res
+            .status(404)
+            .json({ success: false, message: "Lost report not found" });
+        }
+
+        // 2) If it’s already in the desired state, just return it as success
+        if (!!existing.hidden === desiredHidden) {
+          return res.status(200).json({
+            success: true,
+            data: existing,
+          });
+        }
+
+        // 3) Update hidden flag using the exact _id we just found
+        await lostReportsCollection.updateOne(
+          { _id: existing._id },
+          { $set: { hidden: desiredHidden, updatedAt: new Date() } }
+        );
+
+        // 4) Fetch updated lost report to return
+        const updated = await lostReportsCollection.findOne({
+          _id: existing._id,
+        });
+
+        return res.status(200).json({
+          success: true,
+          data: updated || { ...existing, hidden: desiredHidden },
+        });
+      } catch (error) {
+        console.error("Error hiding/unhiding lost report:", error);
+        res.status(500).json({
+          success: false,
+          message: "Failed to hide/unhide lost report",
+          error: error.message,
+        });
+      }
+    });
+
+
+
+    // Create a report on an item, comment, or lost report
+    app.post("/api/reports", async (req, res) => {
+      try {
+        const { targetType, targetId, reason, details, reporter } = req.body;
+
+        const allowedTypes = ["item", "comment", "lostreport"];
+
+        if (!targetType || !allowedTypes.includes(targetType)) {
+          return res.status(400).json({
+            success: false,
+            message: 'targetType must be "item", "comment", or "lostreport"',
+          });
+        }
+
+        if (!targetId || !ObjectId.isValid(targetId)) {
+          return res
+            .status(400)
+            .json({ success: false, message: "Valid targetId is required" });
+        }
+
+        if (!reason || !reason.trim()) {
+          return res
+            .status(400)
+            .json({ success: false, message: "Reason is required" });
+        }
+
+        if (!reporter || !reporter.email) {
+          return res.status(400).json({
+            success: false,
+            message: "Reporter email is required",
+          });
+        }
+
+        const targetObjectId = new ObjectId(targetId);
+        let targetItemId = null;
+        let targetLostReportId = null;
+
+        if (targetType === "item") {
+          const item = await itemsCollection.findOne({ _id: targetObjectId });
+          if (!item) {
+            return res.status(404).json({
+              success: false,
+              message: "Reported item not found",
+            });
+          }
+          targetItemId = item._id;
+        } else if (targetType === "comment") {
+          const comment = await commentsCollection.findOne({
+            _id: targetObjectId,
+          });
+          if (!comment) {
+            return res.status(404).json({
+              success: false,
+              message: "Reported comment not found",
+            });
+          }
+          targetItemId = comment.itemId;
+        } else if (targetType === "lostreport") {
+          const lostReport = await lostReportsCollection.findOne({
+            _id: targetObjectId,
+          });
+          if (!lostReport) {
+            return res.status(404).json({
+              success: false,
+              message: "Reported lost report not found",
+            });
+          }
+          targetLostReportId = lostReport._id;
+        }
+
+        const now = new Date();
+        const doc = {
+          targetType, // 'item' | 'comment' | 'lostreport'
+          targetId: targetObjectId,
+          targetItemId: targetItemId || null,
+          targetLostReportId: targetLostReportId || null,
+          reason: reason.trim(),
+          details: details?.trim() || "",
+          reporter: {
+            email: reporter.email,
+            name: reporter.name || reporter.email,
+            role: reporter.role || "student",
+          },
+          status: "open", // 'open' | 'resolved' | 'dismissed'
+          actionTaken: null, // 'hidden' | 'warning' | 'ban' | 'none'
+          handledBy: null, // { email, name } when processed
+          createdAt: now,
+          updatedAt: now,
+        };
+
+        const result = await reportsCollection.insertOne(doc);
+        const created = await reportsCollection.findOne({
+          _id: result.insertedId,
+        });
+
+        res.status(201).json({ success: true, data: created });
+      } catch (error) {
+        console.error("Error creating report:", error);
+        res.status(500).json({
+          success: false,
+          message: "Failed to create report",
+          error: error.message,
+        });
+      }
+    });
+
+
+    // Get reports (moderation queue)
+    app.get('/api/reports', async (req, res) => {
+      try {
+        const { status = 'open', page = 1, limit = 20 } = req.query;
+
+        const query = {};
+        if (status !== 'all') {
+          query.status = status;
+        }
+
+        const pageNum = parseInt(page);
+        const limitNum = parseInt(limit);
+        const skip = (pageNum - 1) * limitNum;
+
+        const [reports, total] = await Promise.all([
+          reportsCollection
+            .find(query)
+            .sort({ createdAt: -1 }) // newest first
+            .skip(skip)
+            .limit(limitNum)
+            .toArray(),
+          reportsCollection.countDocuments(query),
+        ]);
+
+        res.status(200).json({
+          success: true,
+          data: reports,
+          pagination: {
+            currentPage: pageNum,
+            totalPages: Math.ceil(total / limitNum),
+            totalItems: total,
+            itemsPerPage: limitNum,
+          },
+        });
+      } catch (error) {
+        console.error('Error fetching reports:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Failed to fetch reports',
+          error: error.message,
+        });
+      }
+    });
+
+    // Delete a report entirely (after a moderation decision)
+    app.delete('/api/reports/:id', async (req, res) => {
+      try {
+        const { id } = req.params;
+
+        if (!ObjectId.isValid(id)) {
+          return res
+            .status(400)
+            .json({ success: false, message: 'Invalid report ID' });
+        }
+
+        const result = await reportsCollection.deleteOne({
+          _id: new ObjectId(id),
+        });
+
+        if (result.deletedCount === 0) {
+          return res
+            .status(404)
+            .json({ success: false, message: 'Report not found' });
+        }
+
+        res.status(200).json({ success: true });
+      } catch (error) {
+        console.error('Error deleting report:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Failed to delete report',
+          error: error.message,
+        });
+      }
+    });
+
+    //-----------------------------
+
+    // issue warning
+    app.post('/api/moderation/warn', async (req, res) => {
+      try {
+        const { email, reason, reportId, staff } = req.body;
+
+        if (!email) {
+          return res.status(400).json({ success: false, message: 'email is required' });
+        }
+
+        const now = new Date();
+        let student = await studentsCollection.findOne({ email });
+
+        // create student doc if missing
+        if (!student) {
+          student = {
+            email,
+            name: email,
+            studentId: null,
+            banned: false,
+            warningsCount: 0,
+            bannedUntil: null,
+            createdAt: now,
+            updatedAt: now,
+          };
+          const insertResult = await studentsCollection.insertOne(student);
+          student._id = insertResult.insertedId;
+        }
+
+        let warningsCount = (student.warningsCount || 0) + 1;
+        let bannedUntil = student.bannedUntil;
+
+        if (warningsCount >= 3) {
+          const banMs = 30 * 24 * 60 * 60 * 1000;
+          bannedUntil = new Date(now.getTime() + banMs);
+        }
+
+        const updatedResult = await studentsCollection.findOneAndUpdate(
+          { email },
+          {
+            $set: {
+              warningsCount,
+              bannedUntil: bannedUntil || null,
+              banned: !!bannedUntil,
+              lastWarningReason: reason || '',
+              lastWarningBy: staff?.email || null,
+              lastWarningAt: now,
+              updatedAt: now,
+            },
+          },
+          { returnDocument: 'after' }
+        );
+
+        // mark report as resolved with correct action, if linked
+        if (reportId && ObjectId.isValid(reportId)) {
+          await reportsCollection.updateOne(
+            { _id: new ObjectId(reportId) },
+            {
+              $set: {
+                status: 'resolved',
+                actionTaken: bannedUntil ? 'ban' : 'warning',
+                handledBy: staff || null,
+                updatedAt: new Date(),
+              },
+            }
+          );
+        }
+
+        res.status(200).json({ success: true, data: updatedResult.value });
+      } catch (error) {
+        console.error('Error issuing warning:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Failed to issue warning',
+          error: error.message,
+        });
+      }
+    });
+
+    app.get('/api/moderation/user-status/:email', async (req, res) => {
+      try {
+        const { email } = req.params;
+        if (!email) {
+          return res
+            .status(400)
+            .json({ success: false, message: 'email is required' });
+        }
+
+        let student = await studentsCollection.findOne({ email });
+        const now = new Date();
+
+        // --- Auto-clear expired ban + reset warnings ---
+        if (student && student.bannedUntil && new Date(student.bannedUntil) <= now) {
+          const updatedResult = await studentsCollection.findOneAndUpdate(
+            { email },
+            {
+              $set: {
+                banned: false,
+                warningsCount: 0,
+                updatedAt: now,
+              },
+              $unset: { bannedUntil: "" },
+            },
+            { returnDocument: "after" }
+          );
+
+          student =
+            updatedResult.value || {
+              ...student,
+              banned: false,
+              warningsCount: 0,
+              bannedUntil: null,
+            };
+        }
+
+        const warningsCount = student?.warningsCount || 0;
+        const bannedUntil = student?.bannedUntil || null;
+        const isBanned = !!bannedUntil && new Date(bannedUntil) > now;
+
+        res.status(200).json({
+          success: true,
+          data: { email, warningsCount, bannedUntil, isBanned },
+        });
+      } catch (error) {
+        console.error('Error fetching user moderation status:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Failed to fetch user moderation status',
+          error: error.message,
+        });
+      }
+    });
+
+    // Moderation: list hidden items
+    app.get('/api/moderation/hidden-items', async (req, res) => {
+      try {
+        const { page = 1, limit = 20 } = req.query;
+        const pageNum = parseInt(page, 10);
+        const limitNum = parseInt(limit, 10);
+        const skip = (pageNum - 1) * limitNum;
+
+        const query = { hidden: true };
+
+        const [items, total] = await Promise.all([
+          itemsCollection
+            .find(query)
+            .sort({ updatedAt: -1, createdAt: -1 })
+            .skip(skip)
+            .limit(limitNum)
+            .toArray(),
+          itemsCollection.countDocuments(query),
+        ]);
+
+        res.status(200).json({
+          success: true,
+          data: items,
+          pagination: {
+            currentPage: pageNum,
+            totalPages: Math.ceil(total / limitNum),
+            totalItems: total,
+            itemsPerPage: limitNum,
+          },
+        });
+      } catch (error) {
+        console.error('Error fetching hidden items:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Failed to fetch hidden items',
+          error: error.message,
+        });
+      }
+    });
+
+    // Moderation: list hidden comments
+    app.get('/api/moderation/hidden-comments', async (req, res) => {
+      try {
+        const { page = 1, limit = 20 } = req.query;
+        const pageNum = parseInt(page, 10);
+        const limitNum = parseInt(limit, 10);
+        const skip = (pageNum - 1) * limitNum;
+
+        const query = { hidden: true };
+
+        const [comments, total] = await Promise.all([
+          commentsCollection
+            .find(query)
+            .sort({ updatedAt: -1, createdAt: -1 })
+            .skip(skip)
+            .limit(limitNum)
+            .toArray(),
+          commentsCollection.countDocuments(query),
+        ]);
+
+        res.status(200).json({
+          success: true,
+          data: comments,
+          pagination: {
+            currentPage: pageNum,
+            totalPages: Math.ceil(total / limitNum),
+            totalItems: total,
+            itemsPerPage: limitNum,
+          },
+        });
+      } catch (error) {
+        console.error('Error fetching hidden comments:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Failed to fetch hidden comments',
+          error: error.message,
+        });
+      }
+    });
+
+    // Moderation: list hidden lost reports
+    app.get("/api/moderation/hidden-lostreports", async (req, res) => {
+      try {
+        const { page = 1, limit = 20 } = req.query;
+        const pageNum = parseInt(page, 10);
+        const limitNum = parseInt(limit, 10);
+        const skip = (pageNum - 1) * limitNum;
+
+        const query = { hidden: true };
+
+        const [lostReports, total] = await Promise.all([
+          lostReportsCollection
+            .find(query)
+            .sort({ updatedAt: -1, createdAt: -1 })
+            .skip(skip)
+            .limit(limitNum)
+            .toArray(),
+          lostReportsCollection.countDocuments(query),
+        ]);
+
+        res.status(200).json({
+          success: true,
+          data: lostReports,
+          pagination: {
+            currentPage: pageNum,
+            totalPages: Math.ceil(total / limitNum),
+            totalItems: total,
+            itemsPerPage: limitNum,
+          },
+        });
+      } catch (error) {
+        console.error("Error fetching hidden lost reports:", error);
+        res.status(500).json({
+          success: false,
+          message: "Failed to fetch hidden lost reports",
+          error: error.message,
+        });
+      }
+    });
+
+
+
+
+
+
+
 
     // FEATURE 13: RESTORE Item (undo soft delete)
     app.patch("/items/:id/restore", async (req, res) => {
@@ -740,7 +2214,7 @@ async function run() {
         console.error(err);
         res.status(400).send("Invalid item id");
       }
-    }); 
+    });
 
     // FEATURE 13: RESTORE Lost Report (undo soft delete)
     app.patch("/lostreports/:id/restore", async (req, res) => {
@@ -782,7 +2256,7 @@ async function run() {
         console.error(err);
         res.status(400).send("Invalid report id");
       }
-    });  
+    });
 
     // FEATURE 13: RECYCLE BIN LIST 
     app.get("/api/recycle-bin", async (req, res) => {
@@ -808,7 +2282,7 @@ async function run() {
           return res.json({ success: true, entityType: "items", data });
         }
 
-       
+
         if (role === "student") {
           if (!userEmail) {
             return res.status(400).json({
@@ -839,7 +2313,7 @@ async function run() {
           .status(500)
           .json({ success: false, message: "Failed to load recycle bin" });
       }
-    }); 
+    });
 
 
     // GET /notifications?userEmail=...&limit=50
@@ -899,13 +2373,10 @@ async function run() {
       }
     });
 
-    
+
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
-
-
-
   } catch (error) {
     console.error("❌ MongoDB connection failed:", error);
   }

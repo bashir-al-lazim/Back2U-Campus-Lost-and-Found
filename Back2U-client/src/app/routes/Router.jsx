@@ -18,6 +18,12 @@ import LostReportCreatePage from "../../features/lost_reports/pages/LostReportCr
 import LostReportUpdatePage from "../../features/lost_reports/pages/LostReportUpdatePage";
 import RecycleBinPage from "../../features/recycle_bin/pages/RecycleBinPage"; // new feature 13
 import NotificationsPage from "../../features/notifications/pages/NotificationsPage"; // new feature 6
+import ClaimsListPage from "../../features/claims/pages/ClaimsListPage";
+import ClaimDetailsPage from "../../features/claims/pages/ClaimDetailsPage";
+import HandoverPage from "../../features/handover/pages/HandoverPage";
+import StudentClaimPage from "../../features/claims/pages/StudentClaimPage";
+import MyClaimsPage from "../../features/claims/pages/MyClaimsPage";
+import ModerationQueuePage from "../../features/moderation/pages/ModerationQueuePage";
 
 
 const router = createBrowserRouter([
@@ -49,6 +55,31 @@ const router = createBrowserRouter([
             {
                 path: "recycle-bin",        // dashboard/recycle-bin
                 element: <RecycleBinPage />
+            },
+
+              // FEATURE 4 – Claim Management (2 pages)
+            {
+                path: 'claims',              // /dashboard/claims
+                element: <ClaimsListPage />
+            },
+            {
+                path: 'claims/:id',          // /dashboard/claims/claimId
+                element: <ClaimDetailsPage />
+            },
+
+            // FEATURE 5 – Handover (1 page)
+            {
+                path: 'handover',            // /dashboard/handover
+                element: <HandoverPage />
+            },
+
+            {
+                path: 'my-claims',
+                element: <MyClaimsPage />
+            },
+            {
+                path: "moderation",
+                element: <ModerationQueuePage />,
             },
 
         ]
@@ -87,6 +118,11 @@ const router = createBrowserRouter([
                 element: <NotificationsPage />,
             },
 
+
+            {
+                path: 'items/:id/claim',
+                element: <StudentClaimPage />
+            },
         ]
     },
     {

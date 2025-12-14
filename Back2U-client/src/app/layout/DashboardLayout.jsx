@@ -70,17 +70,12 @@ const DashboardLayout = () => {
                     {role === "staff" && (
                         <>
                             <li>
-                                <NavLink to="/dashboard/product-review-queue">
-                                    <HiMiniClipboardDocumentCheck />
-                                    Product Review
-                                </NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/dashboard/reported-contents">
+                                <NavLink to="/dashboard/moderation">
                                     <MdReport />
-                                    Reported Contents
+                                    Moderation Queue
                                 </NavLink>
                             </li>
+
                             <li>
                                 <NavLink to="/dashboard/items">
                                     <HiMiniClipboardDocumentCheck />
@@ -96,6 +91,18 @@ const DashboardLayout = () => {
                             <li>
                                 <NavLink to="/dashboard/recycle-bin">
                                     🗑️ Recycle Bin
+                                </NavLink>
+                            </li>
+                            <li>
+                                <NavLink to="/dashboard/claims">
+                                    <HiMiniClipboardDocumentCheck />
+                                    Claim Management
+                                </NavLink>
+                            </li>
+                            <li>
+                                <NavLink to="/dashboard/handover">
+                                    <HiMiniClipboardDocumentCheck />
+                                    Handover (OTP)
                                 </NavLink>
                             </li>
 
@@ -121,6 +128,12 @@ const DashboardLayout = () => {
                                 <NavLink to="/dashboard/my-products">
                                     <FaList />
                                     My Products
+                                </NavLink>
+                            </li>
+                            <li>
+                                <NavLink to="/dashboard/my-claims">
+                                    <FaList />
+                                    My Claims
                                 </NavLink>
                             </li>
                         </>
@@ -154,7 +167,7 @@ const DashboardLayout = () => {
                     theme="light"
                 />
             </div>
-        </div>
+        </div >
     );
 };
 

@@ -4,6 +4,7 @@ import { onAuthStateChanged, signInWithPopup, signOut } from "firebase/auth";
 import auth from "../config/firebase.config";
 import { AuthContext, providerGoogle } from "./createProvider";
 import useGetRole from "./apis/useGetRole";
+import { syncUserToBackend } from "./apis/syncUserToBackend";
 
 const AuthProvider = ({ children }) => {
     const [firebaseUser, setFirebaseUser] = useState(null);
@@ -13,11 +14,15 @@ const AuthProvider = ({ children }) => {
         setFirebaseLoading(true);
         try {
             const cred = await signInWithPopup(auth, providerGoogle);
+
+            await syncUserToBackend(cred.user);
+
             return cred;
         } finally {
             setFirebaseLoading(false);
         }
     };
+
 
     const signOutUser = () => {
         setFirebaseLoading(true);
@@ -26,24 +31,28 @@ const AuthProvider = ({ children }) => {
 
 
     useEffect(() => {
-        const unSubscribe = onAuthStateChanged(auth, (currentUser) => {
+        const unSubscribe = onAuthStateChanged(auth, async (currentUser) => {
             setFirebaseUser(currentUser);
             setFirebaseLoading(false);
+
+            //backend is in sync
+            if (currentUser?.email) {
+                await syncUserToBackend(currentUser);
+            }
         });
         return () => unSubscribe();
     }, []);
 
-    // fetch authority role (staff/admin) for logged-in user
+    //fetch authority role 
     console.log
     const {
         data: roleDoc,
         isLoading: roleLoading,
     } = useGetRole(firebaseUser?.email);
 
-    // final role: default to "student" if not in authorities collection
+    //default to "student" 
     const role = roleDoc?.role || "student";
 
-    // combined loading (auth OR role fetch still in progress)
     const loading = firebaseLoading || (firebaseUser?.email && roleLoading);
 
     const authInfo = {
