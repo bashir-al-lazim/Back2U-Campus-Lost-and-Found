@@ -41,37 +41,6 @@ This feature introduces a dedicated share button that provides users with two qu
 
 ---
 
-
-
-
-## 12 **Analytics on Home Page (Public) ✅**
-**What it is:** Trust metrics for everyone on the home page.  
-
-**Users can:**
-- **Active Items:** Count of items with status Open or Claimed
-- **Claim/Match Rate:** % of items that reached Claimed or Resolved out of all items
-- **Median Time-to-Resolution:** Median days from item creation to Resolved (only resolved items)
-
-**Users cannot:**
-- View detailed charts
-- Export data
-
-**Implementation:**
-- **Frontend:**
-  - Component: `HomeAnalytics` in `src/components/HomeAnalytics/`
-  - Fetches data via `analyticsService.js`
-  - Displays numbers dynamically on the home page
-- **Backend:**
-  - Controller: `analyticsController.js`
-  - Route: `GET /api/analytics/home`
-  - Example response:
-```json
-{
-  "activeItems": 42,
-  "claimMatchRate": 76.5,
-  "medianTimeToResolution": 5.2
-}
-
 ## 13 🗑️ Soft-Delete & Restore (Recycle Bin)
 
 This feature provides a safety mechanism to recover accidentally deleted records by moving them to a recycle bin instead of removing them immediately.
@@ -101,3 +70,32 @@ This feature introduces a centralized in-app notification inbox to keep users in
 | **Deep Links** | Clicking a notification redirects users to the relevant page. |
 
 ---
+
+
+## 12 **Analytics on Home Page (Public) ✅**
+**What it is:** Trust metrics for everyone on the home page.  
+
+**Users can:**
+- **Active Items:** Count of items with status Open or Claimed
+- **Claim/Match Rate:** % of items that reached Claimed or Resolved out of all items
+- **Median Time-to-Resolution:** Median days from item creation to Resolved (only resolved items)
+
+**Users cannot:**
+- View detailed charts
+- Export data
+
+**Implementation:**
+- **Frontend:**
+  - Component: `HomeAnalytics` in `src/components/HomeAnalytics/`
+  - Fetches data via `analyticsService.js`
+  - Displays numbers dynamically on the home page
+- **Backend:**
+  - Controller: `analyticsController.js`
+  - Route: `GET /api/analytics/home`
+  - Example response:
+```json
+{
+  "activeItems": 42,
+  "claimMatchRate": 76.5,
+  "medianTimeToResolution": 5.2
+}
