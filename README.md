@@ -72,3 +72,32 @@ This feature introduces a dedicated share button that provides users with two qu
   "medianTimeToResolution": 5.2
 }
 
+## 13 🗑️ Soft-Delete & Restore (Recycle Bin)
+
+This feature provides a safety mechanism to recover accidentally deleted records by moving them to a recycle bin instead of removing them immediately.
+
+---
+
+📋 Feature Overview
+
+| **Soft Delete** | Items and lost reports are marked as deleted instead of being removed permanently. |
+| **Recycle Bin** | Deleted records are accessible from a dedicated recycle bin page. |
+| **Restore** | Users can restore deleted records back to their original state. |
+| **Auto Cleanup** | Records are permanently deleted after 30 days using TTL. |
+
+---
+
+## 6 🔔 Notifications Hub (In-App Only)
+
+This feature introduces a centralized in-app notification inbox to keep users informed about important system events.
+
+---
+
+📋 Feature Overview
+
+| **Notification Inbox** | Displays all system notifications for the logged-in user. |
+| **Auto Alerts** | Notifications are generated on key actions (delete/restore events). |
+| **Mark as Read** | Users can mark individual or all notifications as read. |
+| **Deep Links** | Clicking a notification redirects users to the relevant page. |
+
+---

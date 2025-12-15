@@ -93,6 +93,12 @@ const DashboardLayout = () => {
                                     Lost Reports (Matching)
                                 </NavLink>
                             </li>
+                            <li>
+                                <NavLink to="/dashboard/recycle-bin">
+                                    🗑️ Recycle Bin
+                                </NavLink>
+                            </li>
+
                         </>
                     )}
 

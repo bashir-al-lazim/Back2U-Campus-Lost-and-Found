@@ -16,6 +16,8 @@ import AuthorityLostReportsPage from "../../features/authority/pages/lost_report
 import MyLostReportsPage from "../../features/lost_reports/pages/MyLostReportsPage";
 import LostReportCreatePage from "../../features/lost_reports/pages/LostReportCreatePage";
 import LostReportUpdatePage from "../../features/lost_reports/pages/LostReportUpdatePage";
+import RecycleBinPage from "../../features/recycle_bin/pages/RecycleBinPage"; // new feature 13
+import NotificationsPage from "../../features/notifications/pages/NotificationsPage"; // new feature 6
 
 
 const router = createBrowserRouter([
@@ -44,6 +46,11 @@ const router = createBrowserRouter([
                 path: 'lost-reports',        // /dashboard/lost-reports
                 element: <AuthorityLostReportsPage />
             },
+            {
+                path: "recycle-bin",        // dashboard/recycle-bin
+                element: <RecycleBinPage />
+            },
+
         ]
     },
     {
@@ -71,6 +78,15 @@ const router = createBrowserRouter([
                 path: 'lost-reports/update/:id',
                 element: <LostReportUpdatePage />,
             },
+            {
+                path: "recycle-bin",
+                element: <RecycleBinPage />
+            },
+            {
+                path: "notifications",
+                element: <NotificationsPage />,
+            },
+
         ]
     },
     {

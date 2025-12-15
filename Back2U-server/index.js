@@ -34,7 +34,56 @@ async function run() {
     const itemsCollection = db.collection("items");
     const lostReportsCollection = db.collection("lostreports");
     const authorityCollection = db.collection("authorities");
+    const notificationsCollection = db.collection("notifications"); // ✅ Feature 6
 
+
+    // FEATURE 13: TTL permanent delete after 30 days
+    await itemsCollection.createIndex(
+      { deletedAt: 1 },
+      {
+        expireAfterSeconds: 60 * 60 * 24 * 30, 
+        partialFilterExpression: { isDeleted: true, deletedAt: { $type: "date" } },
+      }
+    );
+
+    await lostReportsCollection.createIndex(
+      { deletedAt: 1 },
+      {
+        expireAfterSeconds: 60 * 60 * 24 * 30,
+        partialFilterExpression: { isDeleted: true, deletedAt: { $type: "date" } },
+      }
+    );
+
+    // FEATURE 6: Notifications index 
+    await notificationsCollection.createIndex(
+      { userEmail: 1, isRead: 1, createdAt: -1 }
+    );
+
+    // -----------------------
+    // Notifications
+    // -----------------------
+    async function createNotification({
+      userEmail,
+      type,
+      title,
+      message,
+      link,
+      entity = null,
+    }) {
+      if (!userEmail) return;
+
+      await notificationsCollection.insertOne({
+        userEmail,
+        type,
+        title,
+        message,
+        link,
+        entity,
+        isRead: false,
+        createdAt: new Date(),
+        readAt: null,
+      });
+    }
 
     // -----------------------
     // AUTHORITY ROUTE
@@ -57,10 +106,16 @@ async function run() {
     // -----------------------
     // ITEMS CRUD
     // -----------------------
+    // FEATURE 13: hide soft-deleted items 
     app.get("/items", async (req, res) => {
-      const items = await itemsCollection.find().sort({ _id: -1 }).toArray();
+      const items = await itemsCollection
+        .find({ isDeleted: { $ne: true } })
+        .sort({ _id: -1 })
+        .toArray();
+
       res.send(items);
     });
+
 
     app.post("/items", async (req, res) => {
       const item = req.body;
@@ -119,27 +174,66 @@ async function run() {
       }
     });
 
+
+
+    //  FEATURE 13: SOFT DELETE 
     app.delete("/items/:id", async (req, res) => {
       const { id } = req.params;
+
       try {
-        const filter = { _id: new ObjectId(id) };
-        const result = await itemsCollection.deleteOne(filter);
-        if (result.deletedCount === 0) return res.status(404).send("Item not found");
-        res.send({ ok: true });
+        const _id = new ObjectId(id);
+
+        const item = await itemsCollection.findOne({ _id });
+        if (!item) return res.status(404).send("Item not found");
+
+        await itemsCollection.updateOne(
+          { _id },
+          {
+            $set: {
+              isDeleted: true,
+              deletedAt: new Date(),
+              deletedBy: req.body?.deletedBy || null,
+              updatedAt: new Date(),
+            },
+          }
+        );
+        //  FEATURE 6: create notification on ITEM delete 
+        await createNotification({
+          userEmail: req.body?.deletedBy || null,
+          type: "ITEM_DELETED",
+          title: "Item moved to Recycle Bin",
+          message: `“${item.title || "Untitled"}” was deleted. You can restore it from Recycle Bin.`,
+          link: "/dashboard/recycle-bin",
+          entity: { kind: "item", id },
+        });
+
+        res.send({ ok: true, softDeleted: true });
       } catch (err) {
         console.error(err);
         res.status(400).send("Invalid item id");
       }
-    });
+    }); // f13 
+
 
     // -----------------------
     // LOST REPORTS CRUD
     // -----------------------
+
+    // FEATURE 13
     app.get("/lostreports", async (req, res) => {
       try {
         const { userEmail } = req.query;
-        const filter = userEmail ? { userEmail } : {};
-        const reports = await lostReportsCollection.find(filter).sort({ _id: -1 }).toArray();
+
+        const filter = {
+          ...(userEmail ? { userEmail } : {}),
+          isDeleted: { $ne: true }   // ✅ NEW
+        };
+
+        const reports = await lostReportsCollection
+          .find(filter)
+          .sort({ _id: -1 })
+          .toArray();
+
         res.send(reports);
       } catch (err) {
         console.error(err);
@@ -147,11 +241,16 @@ async function run() {
       }
     });
 
+
     app.get("/lostreports/:id", async (req, res) => {
       const { id } = req.params;
       try {
         const filter = { _id: new ObjectId(id) };
-        const report = await lostReportsCollection.findOne(filter);
+        const report = await lostReportsCollection.findOne({
+          ...filter,
+          isDeleted: { $ne: true }   
+        }); 
+
         if (!report) return res.status(404).send("Lost report not found");
         res.send(report);
       } catch (err) {
@@ -192,18 +291,48 @@ async function run() {
       }
     });
 
+
+
+    // FEATURE 13: SOFT DELETE Lost Report 
     app.delete("/lostreports/:id", async (req, res) => {
       const { id } = req.params;
+
       try {
-        const filter = { _id: new ObjectId(id) };
-        const result = await lostReportsCollection.deleteOne(filter);
-        if (result.deletedCount === 0) return res.status(404).send("Lost report not found");
-        res.send({ ok: true });
+        const _id = new ObjectId(id);
+
+        const report = await lostReportsCollection.findOne({ _id });
+        if (!report) return res.status(404).send("Lost report not found");
+
+        await lostReportsCollection.updateOne(
+          { _id },
+          {
+            $set: {
+              isDeleted: true,
+              deletedAt: new Date(),
+              deletedBy: req.body?.deletedBy || report.userEmail || null,
+              updatedAt: new Date(),
+            },
+          }
+        );
+
+        // FEATURE 6 
+        await createNotification({
+          userEmail: report.userEmail,
+          type: "LOSTREPORT_DELETED",
+          title: "Lost report moved to Recycle Bin",
+          message: `“${report.title || "Untitled"}” was deleted. You can restore it from Recycle Bin.`,
+          link: "/app/recycle-bin",
+          entity: { kind: "lostreport", id },
+        });
+
+        res.send({ ok: true, softDeleted: true });
       } catch (err) {
         console.error(err);
         res.status(400).send("Invalid report id");
       }
-    });
+    });  
+
+
 
     // -----------------------
     // LINKING LOST REPORTS TO ITEMS
@@ -313,7 +442,11 @@ async function run() {
           return res.status(200).json(null);
         }
 
-        const item = await itemsCollection.findOne({ _id: new ObjectId(report.linkedItemId) });
+        const item = await itemsCollection.findOne({
+          _id: new ObjectId(report.linkedItemId),
+          isDeleted: { $ne: true }, //  don't return deleted linked items
+        });  
+
         res.status(200).json(item);
       } catch (err) {
         console.error(err);
@@ -325,14 +458,22 @@ async function run() {
     app.get("/items/:id/linked-report", async (req, res) => {
       const { id } = req.params;
       try {
-        const item = await itemsCollection.findOne({ _id: new ObjectId(id) });
+        const item = await itemsCollection.findOne({
+          _id: new ObjectId(id),
+          isDeleted: { $ne: true },
+        });
+
         if (!item) return res.status(404).send("Item not found");
 
         if (!item.linkedReportId) {
           return res.status(200).json(null);
         }
 
-        const report = await lostReportsCollection.findOne({ _id: new ObjectId(item.linkedReportId) });
+        const report = await lostReportsCollection.findOne({
+          _id: new ObjectId(item.linkedReportId),
+          isDeleted: { $ne: true }, //  don't return deleted linked reports
+        });
+
         res.status(200).json(report);
       } catch (err) {
         console.error(err);
@@ -346,8 +487,8 @@ async function run() {
     app.get("/analytics", async (req, res) => {
       try {
         const [items, lostReports] = await Promise.all([
-          itemsCollection.find().toArray(),
-          lostReportsCollection.find().toArray(),
+          itemsCollection.find({ isDeleted: { $ne: true } }).toArray(),       //  ignore deleted items
+          lostReportsCollection.find({ isDeleted: { $ne: true } }).toArray(), //  ignore deleted reports
         ]);
         const combined = [...items, ...lostReports];
 
@@ -388,8 +529,8 @@ async function run() {
         }
 
         const [items, lostReports] = await Promise.all([
-          itemsCollection.find().toArray(),
-          lostReportsCollection.find().toArray(),
+          itemsCollection.find({ isDeleted: { $ne: true } }).toArray(),       //  ignore deleted items
+          lostReportsCollection.find({ isDeleted: { $ne: true } }).toArray(), //  ignore deleted reports
         ]);
         const combined = [...items, ...lostReports];
 
@@ -451,6 +592,9 @@ async function run() {
 
         // Build query
         const query = {};
+        //  FEATURE 13: exclude deleted items everywhere in discovery/share
+        query.isDeleted = { $ne: true };
+
 
         // Keyword search (title or description)
         if (keyword) {
@@ -529,8 +673,11 @@ async function run() {
             message: 'Invalid item ID',
           });
         }
+        const item = await itemsCollection.findOne({
+          _id: new ObjectId(id),
+          isDeleted: { $ne: true }, //  hide deleted items from detail/share link
+        });  
 
-        const item = await itemsCollection.findOne({ _id: new ObjectId(id) });
 
         if (!item) {
           return res.status(404).json({
@@ -553,7 +700,206 @@ async function run() {
       }
     })
 
+    // FEATURE 13: RESTORE Item (undo soft delete)
+    app.patch("/items/:id/restore", async (req, res) => {
+      const { id } = req.params;
 
+      try {
+        const _id = new ObjectId(id);
+
+        const item = await itemsCollection.findOne({ _id, isDeleted: true });
+        if (!item) return res.status(404).send("Item not found in recycle bin");
+
+
+        await itemsCollection.updateOne(
+          { _id },
+          {
+            $set: {
+              isDeleted: false,
+              restoredAt: new Date(),
+              restoredBy: req.body?.restoredBy || null,
+              updatedAt: new Date(),
+            },
+            // unset deletedAt so TTL won't remove restored item
+            $unset: { deletedAt: "", deletedBy: "" },
+          }
+        );
+
+        // FEATURE 6: create notification on ITEM restore
+        await createNotification({
+          userEmail: req.body?.restoredBy || null,
+          type: "ITEM_RESTORED",
+          title: "Item restored",
+          message: `“${item.title || "Untitled"}” has been restored successfully.`,
+          link: "/dashboard/items",
+          entity: { kind: "item", id },
+        });
+
+        res.send({ ok: true, restored: true });
+      } catch (err) {
+        console.error(err);
+        res.status(400).send("Invalid item id");
+      }
+    }); 
+
+    // FEATURE 13: RESTORE Lost Report (undo soft delete)
+    app.patch("/lostreports/:id/restore", async (req, res) => {
+      const { id } = req.params;
+
+      try {
+        const _id = new ObjectId(id);
+
+        const report = await lostReportsCollection.findOne({ _id, isDeleted: true });
+        if (!report) return res.status(404).send("Lost report not found in recycle bin");
+
+
+        await lostReportsCollection.updateOne(
+          { _id },
+          {
+            $set: {
+              isDeleted: false,
+              restoredAt: new Date(),
+              restoredBy: req.body?.restoredBy || null,
+              updatedAt: new Date(),
+            },
+            // unset deletedAt so TTL won't remove restored report
+            $unset: { deletedAt: "", deletedBy: "" },
+          }
+        );
+
+        // FEATURE 6: notify student 
+        await createNotification({
+          userEmail: report.userEmail,
+          type: "LOSTREPORT_RESTORED",
+          title: "Lost report restored",
+          message: `“${report.title || "Untitled"}” has been restored successfully.`,
+          link: "/app/lost-reports",
+          entity: { kind: "lostreport", id },
+        });
+
+        res.send({ ok: true, restored: true });
+      } catch (err) {
+        console.error(err);
+        res.status(400).send("Invalid report id");
+      }
+    });  
+
+    // FEATURE 13: RECYCLE BIN LIST 
+    app.get("/api/recycle-bin", async (req, res) => {
+      try {
+        const { role, userEmail } = req.query;
+
+        if (!role) {
+          return res
+            .status(400)
+            .json({ success: false, message: "role is required" });
+        }
+
+        if (role === "admin" || role === "staff") {
+          const deletedItems = await itemsCollection
+            .find({ isDeleted: true })
+            .sort({ deletedAt: -1 })
+            .toArray();
+          const data = deletedItems.map((doc) => ({
+            ...doc,
+            displayName: doc.title || doc.name || "(no title)",
+          }));
+
+          return res.json({ success: true, entityType: "items", data });
+        }
+
+       
+        if (role === "student") {
+          if (!userEmail) {
+            return res.status(400).json({
+              success: false,
+              message: "userEmail is required for students",
+            });
+          }
+
+          const deletedReports = await lostReportsCollection
+            .find({ isDeleted: true, userEmail })
+            .sort({ deletedAt: -1 })
+            .toArray();
+
+          const data = deletedReports.map((doc) => ({
+            ...doc,
+            displayName: doc.title || doc.name || "(no title)",
+          }));
+
+          return res.json({ success: true, entityType: "lostreports", data });
+        }
+
+        return res
+          .status(400)
+          .json({ success: false, message: "Unknown role" });
+      } catch (err) {
+        console.error(err);
+        return res
+          .status(500)
+          .json({ success: false, message: "Failed to load recycle bin" });
+      }
+    }); 
+
+
+    // GET /notifications?userEmail=...&limit=50
+    app.get("/notifications", async (req, res) => {
+      try {
+        const { userEmail, limit = 50 } = req.query;
+        if (!userEmail) return res.status(400).json({ message: "userEmail is required" });
+
+        const limitNum = Math.min(parseInt(limit, 10) || 50, 100);
+
+        const data = await notificationsCollection
+          .find({ userEmail })
+          .sort({ createdAt: -1 })
+          .limit(limitNum)
+          .toArray();
+
+        res.json({ success: true, data });
+      } catch (err) {
+        console.error("GET /notifications error:", err);
+        res.status(500).json({ success: false, message: "Failed to load notifications" });
+      }
+    });
+
+    // PATCH /notifications/:id/read
+    app.patch("/notifications/:id/read", async (req, res) => {
+      try {
+        const { id } = req.params;
+        if (!ObjectId.isValid(id)) return res.status(400).json({ message: "Invalid id" });
+
+        const result = await notificationsCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $set: { isRead: true, readAt: new Date() } }
+        );
+
+        res.json({ success: true, updated: result.modifiedCount === 1 });
+      } catch (err) {
+        console.error("PATCH /notifications/:id/read error:", err);
+        res.status(500).json({ success: false, message: "Failed to mark as read" });
+      }
+    });
+
+    // PATCH /notifications/read-all?userEmail=...
+    app.patch("/notifications/read-all", async (req, res) => {
+      try {
+        const { userEmail } = req.query;
+        if (!userEmail) return res.status(400).json({ message: "userEmail is required" });
+
+        const result = await notificationsCollection.updateMany(
+          { userEmail, isRead: false },
+          { $set: { isRead: true, readAt: new Date() } }
+        );
+
+        res.json({ success: true, updatedCount: result.modifiedCount });
+      } catch (err) {
+        console.error("PATCH /notifications/read-all error:", err);
+        res.status(500).json({ success: false, message: "Failed to mark all as read" });
+      }
+    });
+
+    
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
