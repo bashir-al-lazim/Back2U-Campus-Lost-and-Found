@@ -113,8 +113,6 @@ const router = createBrowserRouter([
                 path: "notifications",
                 element: <NotificationsPage />,
             },
-
-
             {
                 path: 'items/:id/claim',
                 element: <StudentClaimPage />
