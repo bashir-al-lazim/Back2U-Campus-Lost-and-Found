@@ -1,15 +1,21 @@
 // src/features/authority/pages/AuthorityCatalogPage.jsx
-import React, { useEffect, useState } from 'react';
+// import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useContext } from 'react'; 
+
 import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import { toast } from 'react-toastify';
 import { fetchItems, deleteItem } from '../api/itemsApi';
+import { AuthContext } from '../../../app/providers/createProvider'; 
+
 
 export default function AuthorityCatalogPage() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState(null);
   const navigate = useNavigate();
+  const { user } = useContext(AuthContext); 
+
 
   const loadItems = async () => {
     setLoading(true);
@@ -43,7 +49,7 @@ export default function AuthorityCatalogPage() {
 
     try {
       setDeletingId(item.id);
-      await deleteItem(item.id);
+      await deleteItem(item.id, user?.email); 
       setItems((prev) => prev.filter((i) => i.id !== item.id));
       toast.success('Item deleted');
     } catch (err) {

@@ -43,7 +43,8 @@ export default function MyLostReportsPage() {
     if (!result.isConfirmed) return;
 
     try {
-      await deleteLostReport(id);
+      
+      await deleteLostReport(id, user?.email); 
       toast.success('Report deleted successfully');
       loadReports();
     } catch (err) {
