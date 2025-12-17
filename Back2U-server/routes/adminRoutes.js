@@ -180,12 +180,15 @@ router.get("/student/:studentId", async (req, res) => {
     const { studentId } = req.params;
 
     const student = await db.collection("students").findOne({ studentId });
-    if (!student) return res.status(404).json({ message: "Student not found" });
+
+    if (!student) {
+      return res.status(404).json({ message: "Student not found" });
+    }
 
     res.json(student);
-  } catch (err) {
-    console.error("GET /student/:studentId error:", err);
-    res.status(500).json({ success: false, error: err.message });
+  } catch (error) {
+    console.error("Get student error:", error);
+    res.status(500).json({ message: "Server error" });
   }
 });
 
@@ -194,19 +197,21 @@ router.put("/student/unban/:studentId", async (req, res) => {
   try {
     const db = getDb(req);
     const { studentId } = req.params;
+    const adminEmail = req.body.adminEmail || "ADMIN_USER";
 
     const result = await db.collection("students").updateOne(
       { studentId },
       { $set: { banned: false } }
     );
 
-    if (result.matchedCount === 0)
+    if (result.matchedCount === 0) {
       return res.status(404).json({ message: "Student not found" });
+    }
 
     await db.collection("auditLogs").insertOne({
       action: "UNBAN_STUDENT",
       details: `Student ID ${studentId} unbanned`,
-      admin: req.body.adminEmail || "ADMIN_USER",
+      admin: adminEmail,
       timestamp: new Date()
     });
 
