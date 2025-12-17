@@ -2,33 +2,13 @@ import { useContext, useEffect, useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { AuthContext } from "../../app/providers/createProvider";
 import { toast } from "react-toastify";
-import { fetchUnreadCount } from "../../features/notifications/api/notificationsApi";
-
+import NotificationBell from "../../features/notifications/components/NotificationBell";
 
 
 const Nav = () => {
   const { user, signOutUser, role } = useContext(AuthContext);
 
   const [scroll, setScroll] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
-
-  useEffect(() => {
-    const loadUnread = async () => {
-      try {
-        if (!user?.email) {
-          setUnreadCount(0);
-          return;
-        }
-
-        const count = await fetchUnreadCount(user.email);
-        setUnreadCount(count);
-      } catch (err) {
-        console.error("Failed to load unread count", err);
-      }
-    };
-
-    loadUnread();
-  }, [user?.email]);
 
 
   window.addEventListener("scroll", () => {
@@ -37,6 +17,7 @@ const Nav = () => {
     }
     setScroll(false);
   });
+
 
   const handleSignOut = () => {
     signOutUser()
@@ -53,8 +34,6 @@ const Nav = () => {
       : "text-black py-[0.575rem] px-5 border-[0.1rem] border-transparent hover:text-[#898888]";
 
 
-
-  const showNotifications = !!user;
 
   return (
     <div
@@ -117,24 +96,6 @@ const Nav = () => {
               </NavLink>
 
 
-              {showNotifications && (
-                <NavLink
-                  to="/app/notifications"
-                  className={({ isActive }) =>
-                    isActive
-                      ? "px-5 py-2 bg-base-100 border-[0.1rem] border-yellow-400 rounded-lg"
-                      : "px-5 py-2 bg-base-100 border-[0.1rem] border-b-[#898888] hover:text-[#898888] border-transparent"
-                  }
-                >
-                  <span className="inline-flex items-center gap-2">
-                    Notifications
-                    {unreadCount > 0 && (
-                      <span className="badge badge-warning badge-sm">{unreadCount}</span>
-                    )}
-                  </span>
-                </NavLink>
-              )}
-
             </ul>
           </div>
 
@@ -162,21 +123,11 @@ const Nav = () => {
               My Lost Reports
             </NavLink>
 
-            {showNotifications && (
-              <NavLink to="/app/notifications" className={pages}>
-                <span className="inline-flex items-center gap-2">
-                  Notifications
-                  {unreadCount > 0 && (
-                    <span className="badge badge-warning badge-sm">{unreadCount}</span>
-                  )}
-                </span>
-              </NavLink>
-            )}
-
           </ul>
         </div>
 
         <div id="nav-btn" className="flex gap-4 items-center navbar-end">
+          {user && <NotificationBell />}
           {user && (
             <div className="avatar dropdown">
               <div
