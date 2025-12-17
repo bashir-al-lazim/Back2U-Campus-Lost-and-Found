@@ -16,6 +16,8 @@ import AuthorityLostReportsPage from "../../features/authority/pages/lost_report
 import MyLostReportsPage from "../../features/lost_reports/pages/MyLostReportsPage";
 import LostReportCreatePage from "../../features/lost_reports/pages/LostReportCreatePage";
 import LostReportUpdatePage from "../../features/lost_reports/pages/LostReportUpdatePage";
+import RecycleBinPage from "../../features/recycle_bin/pages/RecycleBinPage"; // new feature 13
+import NotificationsPage from "../../features/notifications/pages/NotificationsPage"; // new feature 6
 import ClaimsListPage from "../../features/claims/pages/ClaimsListPage";
 import ClaimDetailsPage from "../../features/claims/pages/ClaimDetailsPage";
 import HandoverPage from "../../features/handover/pages/HandoverPage";
@@ -49,6 +51,10 @@ const router = createBrowserRouter([
             {
                 path: 'lost-reports',        // /dashboard/lost-reports
                 element: <AuthorityLostReportsPage />
+            },
+            {
+                path: "recycle-bin",        // dashboard/recycle-bin
+                element: <RecycleBinPage />
             },
 
               // FEATURE 4 – Claim Management (2 pages)
@@ -103,7 +109,10 @@ const router = createBrowserRouter([
                 path: 'lost-reports/update/:id',
                 element: <LostReportUpdatePage />,
             },
-
+            {
+                path: "notifications",
+                element: <NotificationsPage />,
+            },
             {
                 path: 'items/:id/claim',
                 element: <StudentClaimPage />

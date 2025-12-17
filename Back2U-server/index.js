@@ -28,6 +28,7 @@ async function run() {
     const itemsCollection = db.collection("items");
     const lostReportsCollection = db.collection("lostreports");
     const authorityCollection = db.collection("authorities");
+    const notificationsCollection = db.collection("notifications"); // ✅ Feature 6
     const claimsCollection = db.collection("claims");
     const commentsCollection = db.collection("comments");
     const studentsCollection = db.collection("students");
@@ -83,6 +84,94 @@ async function run() {
       return false;
     }
 
+
+    // TTL permanent delete after 30 days
+    await itemsCollection.createIndex(
+      { deletedAt: 1 },
+      {
+        expireAfterSeconds: 60 * 60 * 24 * 30,
+        partialFilterExpression: { isDeleted: true, deletedAt: { $type: "date" } },
+      }
+    );
+
+    await lostReportsCollection.createIndex(
+      { deletedAt: 1 },
+      {
+        expireAfterSeconds: 60 * 60 * 24 * 30,
+        partialFilterExpression: { isDeleted: true, deletedAt: { $type: "date" } },
+      }
+    );
+
+    // Notifications index 
+    await notificationsCollection.createIndex(
+      { userEmail: 1, isRead: 1, createdAt: -1 }
+    );
+
+    // -----------------------
+    // Notifications
+    // -----------------------
+    async function createNotification({
+      userEmail,
+      type,
+      title,
+      message,
+      link,
+      entity = null,
+    }) {
+      if (!userEmail) return;
+
+      const now = new Date();
+
+      await notificationsCollection.insertOne({
+        userEmail,
+        type,
+        title,
+        message,
+        link,
+        entity,
+        isRead: false,
+        createdAt: now,
+        readAt: null,
+      });
+
+      // ✅ Keep only latest 50 notifications per user (delete oldest)
+      const count = await notificationsCollection.countDocuments({ userEmail });
+
+      if (count > 50) {
+        const extra = count - 50;
+
+        const oldest = await notificationsCollection
+          .find({ userEmail })
+          .sort({ createdAt: 1 }) // oldest first
+          .limit(extra)
+          .project({ _id: 1 })
+          .toArray();
+
+        if (oldest.length > 0) {
+          await notificationsCollection.deleteMany({
+            _id: { $in: oldest.map((d) => d._id) },
+          });
+        }
+      }
+    }
+    // ✅ Notify all staff/admin users (for claim-created alerts)
+    async function notifyAuthorities(notification) {
+      const authorities = await authorityCollection
+        .find({ role: { $in: ["admin", "staff"] } })
+        .project({ email: 1 })
+        .toArray();
+
+      await Promise.all(
+        authorities
+          .filter((a) => a?.email)
+          .map((a) =>
+            createNotification({
+              ...notification,
+              userEmail: a.email,
+            })
+          )
+      );
+    }
 
 
     // -----------------------
@@ -557,16 +646,26 @@ async function run() {
     // -----------------------
     // ITEMS CRUD
     // -----------------------
+
+    // hide soft-deleted and hidden items 
     app.get("/items", async (req, res) => {
-      const items = await itemsCollection
-        .find({ hidden: { $ne: true } })   // NEW
-        .sort({ _id: -1 })
-        .toArray();
-      res.send(items);
+      try {
+        const items = await itemsCollection
+          .find({
+            isDeleted: { $ne: true },
+            hidden: { $ne: true }
+          })
+          .sort({ _id: -1 })
+          .toArray();
+
+        res.send(items);
+      } catch (error) {
+        res.status(500).send({ message: "Error fetching items", error });
+      }
     });
-       //create items
 
 
+    //create items
     app.post("/items", async (req, res) => {
       const item = req.body;
       if (!item.title || !item.category || !item.description || !item.locationText) {
@@ -625,29 +724,58 @@ async function run() {
         res.status(400).send('Invalid item id');
       }
     });
-  // DELETE item
+
+
+    // DELETE item
     app.delete("/items/:id", async (req, res) => {
       const { id } = req.params;
+
       try {
-        const filter = { _id: new ObjectId(id) };
-        const result = await itemsCollection.deleteOne(filter);
-        if (result.deletedCount === 0) return res.status(404).send("Item not found");
-        res.send({ ok: true });
+        const _id = new ObjectId(id);
+
+        const item = await itemsCollection.findOne({ _id });
+        if (!item) return res.status(404).send("Item not found");
+
+        await itemsCollection.updateOne(
+          { _id },
+          {
+            $set: {
+              isDeleted: true,
+              deletedAt: new Date(),
+              deletedBy: req.body?.deletedBy || null,
+              updatedAt: new Date(),
+            },
+          }
+        );
+        // create notification on ITEM delete 
+        await createNotification({
+          userEmail: req.body?.deletedBy || null,
+          type: "ITEM_DELETED",
+          title: "Item moved to Recycle Bin",
+          message: `“${item.title || "Untitled"}” was deleted. You can restore it from Recycle Bin.`,
+          link: "/dashboard/recycle-bin",
+          entity: { kind: "item", id },
+        });
+
+        res.send({ ok: true, softDeleted: true });
       } catch (err) {
         console.error(err);
         res.status(400).send("Invalid item id");
       }
     });
 
+
     // -----------------------
     // LOST REPORTS CRUD
     // -----------------------
+
     app.get("/lostreports", async (req, res) => {
       try {
         const { userEmail } = req.query;
 
         const filter = {
           ...(userEmail ? { userEmail } : {}),
+          isDeleted: { $ne: true },   // ✅ NEW         
           hidden: { $ne: true }, // 🚫 do not return hidden lost reports in normal views
         };
 
@@ -668,7 +796,11 @@ async function run() {
       const { id } = req.params;
       try {
         const filter = { _id: new ObjectId(id) };
-        const report = await lostReportsCollection.findOne(filter);
+        const report = await lostReportsCollection.findOne({
+          ...filter,
+          isDeleted: { $ne: true }
+        });
+
         if (!report) return res.status(404).send("Lost report not found");
         res.send(report);
       } catch (err) {
@@ -720,18 +852,48 @@ async function run() {
       }
     });
 
+
+
+    // SOFT DELETE Lost Report 
     app.delete("/lostreports/:id", async (req, res) => {
       const { id } = req.params;
+
       try {
-        const filter = { _id: new ObjectId(id) };
-        const result = await lostReportsCollection.deleteOne(filter);
-        if (result.deletedCount === 0) return res.status(404).send("Lost report not found");
-        res.send({ ok: true });
+        const _id = new ObjectId(id);
+
+        const report = await lostReportsCollection.findOne({ _id });
+        if (!report) return res.status(404).send("Lost report not found");
+
+        await lostReportsCollection.updateOne(
+          { _id },
+          {
+            $set: {
+              isDeleted: true,
+              deletedAt: new Date(),
+              deletedBy: req.body?.deletedBy || report.userEmail || null,
+              updatedAt: new Date(),
+            },
+          }
+        );
+
+        // create notification on lost report delete  
+        await createNotification({
+          userEmail: report.userEmail,
+          type: "LOSTREPORT_DELETED",
+          title: "Lost report moved to Recycle Bin",
+          message: `“${report.title || "Untitled"}” was deleted. You can restore it from Recycle Bin.`,
+          link: "/dashboard/recycle-bin",
+          entity: { kind: "lostreport", id },
+        });
+
+        res.send({ ok: true, softDeleted: true });
       } catch (err) {
         console.error(err);
         res.status(400).send("Invalid report id");
       }
     });
+
+
 
     // -----------------------
     // LINKING LOST REPORTS TO ITEMS
@@ -841,7 +1003,11 @@ async function run() {
           return res.status(200).json(null);
         }
 
-        const item = await itemsCollection.findOne({ _id: new ObjectId(report.linkedItemId) });
+        const item = await itemsCollection.findOne({
+          _id: new ObjectId(report.linkedItemId),
+          isDeleted: { $ne: true }, //  don't return deleted linked items
+        });
+
         res.status(200).json(item);
       } catch (err) {
         console.error(err);
@@ -853,14 +1019,22 @@ async function run() {
     app.get("/items/:id/linked-report", async (req, res) => {
       const { id } = req.params;
       try {
-        const item = await itemsCollection.findOne({ _id: new ObjectId(id) });
+        const item = await itemsCollection.findOne({
+          _id: new ObjectId(id),
+          isDeleted: { $ne: true },
+        });
+
         if (!item) return res.status(404).send("Item not found");
 
         if (!item.linkedReportId) {
           return res.status(200).json(null);
         }
 
-        const report = await lostReportsCollection.findOne({ _id: new ObjectId(item.linkedReportId) });
+        const report = await lostReportsCollection.findOne({
+          _id: new ObjectId(item.linkedReportId),
+          isDeleted: { $ne: true }, //  don't return deleted linked reports
+        });
+
         res.status(200).json(report);
       } catch (err) {
         console.error(err);
@@ -874,8 +1048,8 @@ async function run() {
     app.get("/analytics", async (req, res) => {
       try {
         const [items, lostReports] = await Promise.all([
-          itemsCollection.find().toArray(),
-          lostReportsCollection.find().toArray(),
+          itemsCollection.find({ isDeleted: { $ne: true } }).toArray(),       //  ignore deleted items
+          lostReportsCollection.find({ isDeleted: { $ne: true } }).toArray(), //  ignore deleted reports
         ]);
         const combined = [...items, ...lostReports];
 
@@ -916,8 +1090,8 @@ async function run() {
         }
 
         const [items, lostReports] = await Promise.all([
-          itemsCollection.find().toArray(),
-          lostReportsCollection.find().toArray(),
+          itemsCollection.find({ isDeleted: { $ne: true } }).toArray(),       //  ignore deleted items
+          lostReportsCollection.find({ isDeleted: { $ne: true } }).toArray(), //  ignore deleted reports
         ]);
         const combined = [...items, ...lostReports];
 
@@ -975,6 +1149,9 @@ async function run() {
         } = req.query;
 
         const query = {};
+        // exclude deleted items everywhere in discovery/share
+        query.isDeleted = { $ne: true };
+
 
         if (keyword) {
           query.$or = [
@@ -1047,8 +1224,11 @@ async function run() {
             message: 'Invalid item ID',
           });
         }
+        const item = await itemsCollection.findOne({
+          _id: new ObjectId(id),
+          isDeleted: { $ne: true }, //  hide deleted items from detail/share link
+        });
 
-        const item = await itemsCollection.findOne({ _id: new ObjectId(id) });
 
         if (!item || item.hidden) {
           return res.status(404).json({
@@ -1084,13 +1264,13 @@ async function run() {
       }
 
       try {
-       
+
         const item = await itemsCollection.findOne({ _id: new ObjectId(claimData.itemId) });
         if (!item) {
           return res.status(404).json({ message: 'Item not found or is no longer claimable.' });
         }
 
-        
+
         const status = (item.status || 'Open').trim().toLowerCase();
         if (status !== 'open') {
           return res.status(404).json({ message: 'Item not found or is no longer claimable.' });
@@ -1103,12 +1283,21 @@ async function run() {
           claimantEmail: claimData.claimantEmail,
           proofText: claimData.proofText || '',
           proofPhotoUrl: claimData.proofPhotoUrl || '',
-          status: 'Pending', 
+          status: 'Pending',
           createdAt: new Date(),
           updatedAt: new Date(),
         };
 
         const result = await claimsCollection.insertOne(newClaim);
+        // ✅ Claim created → notify staff/admin
+        await notifyAuthorities({
+          type: "CLAIM_CREATED",
+          title: "New claim submitted",
+          message: `A new claim was submitted for “${item.title || "item"}”.`,
+          link: `/dashboard/claims/${result.insertedId}`,
+          entity: { kind: "claim", id: String(result.insertedId), itemId: String(claimData.itemId) },
+        });
+
         res.status(201).json({
           success: true,
           message: 'Claim submitted successfully. Waiting for staff review.',
@@ -1125,7 +1314,7 @@ async function run() {
       const { itemId } = req.params;
       const {
         claimantEmail,
-        claimantName, 
+        claimantName,
         proofText,
         proofPhotoUrl,
       } = req.body;
@@ -1146,12 +1335,12 @@ async function run() {
           item = await itemsCollection.findOne({ _id: new ObjectId(itemId) });
         }
         if (!item) {
-          
+
           item = await itemsCollection.findOne({ _id: itemId });
         }
 
         if (!item) {
-         
+
           return res.status(404).json({
             message: 'Item not found.',
           });
@@ -1200,6 +1389,15 @@ async function run() {
         };
 
         const result = await claimsCollection.insertOne(newClaim);
+        // ✅ Claim created → notify staff/admin
+        await notifyAuthorities({
+          type: "CLAIM_CREATED",
+          title: "New claim submitted",
+          message: `A new claim was submitted for “${item.title || "item"}”.`,
+          link: `/dashboard/claims/${result.insertedId}`,
+          entity: { kind: "claim", id: String(result.insertedId), itemId: String(itemId) },
+        });
+
 
         return res.status(201).json({
           success: true,
@@ -1221,10 +1419,10 @@ async function run() {
 
         let filter = {};
         if (email) {
-      
+
           filter.claimantEmail = email;
         } else {
-          
+
           filter.status = { $in: ["Pending", "Accepted", "Rejected"] };
         }
 
@@ -1293,6 +1491,18 @@ async function run() {
           { returnDocument: 'after' }
         );
 
+
+        // ✅ Notify student 
+        await createNotification({
+          userEmail: claim.claimantEmail,
+          type: "CLAIM_ACCEPTED",
+          title: "Claim accepted",
+          message: `Your claim for “${claim.itemTitle || "item"}” was accepted. Please check My Claims for details.`,
+          link: "/dashboard/my-claims",
+          entity: { kind: "claim", id: String(_id), itemId: claim.itemId },
+        });
+
+
         return res.json({
           message: 'Claim accepted successfully.',
           ...result.value
@@ -1342,6 +1552,18 @@ async function run() {
           updateDoc,
           { returnDocument: 'after' }
         );
+
+
+        // ✅ Notify student
+        await createNotification({
+          userEmail: claim.claimantEmail,
+          type: "CLAIM_REJECTED",
+          title: "Claim rejected",
+          message: `Your claim for “${claim.itemTitle || "item"}” was rejected. Please check My Claims for details.`,
+          link: "/dashboard/my-claims",
+          entity: { kind: "claim", id: String(_id), itemId: claim.itemId },
+        });
+
 
         return res.status(200).json(result.value);
       } catch (error) {
@@ -1401,7 +1623,7 @@ async function run() {
           claim = await claimsCollection.findOne({ _id: objectId });
         }
 
-        
+
         if (!claim) {
           claim = await claimsCollection.findOne({ itemId: String(claimId) });
         }
@@ -1441,6 +1663,16 @@ async function run() {
           updateDoc,
           { returnDocument: 'after' }
         );
+        
+        // ✅ Notify student: handover verified
+        await createNotification({
+          userEmail: claim.claimantEmail,
+          type: "HANDOVER_VERIFIED",
+          title: "Handover verified",
+          message: `Your handover for “${claim.itemTitle || "item"}” was verified successfully.`,
+          link: "/dashboard/my-claims",
+          entity: { kind: "claim", id: String(claim._id), itemId: String(claim.itemId) },
+        });
 
         return res.json({
           message: 'Item successfully handed over.',
@@ -2026,11 +2258,232 @@ async function run() {
     });
 
 
+    // -----------------------
+    // RESTORE Item (undo soft delete)
+    // ----------------------- 
+
+    app.patch("/items/:id/restore", async (req, res) => {
+      const { id } = req.params;
+
+      try {
+        const _id = new ObjectId(id);
+
+        const item = await itemsCollection.findOne({ _id, isDeleted: true });
+        if (!item) return res.status(404).send("Item not found in recycle bin");
 
 
+        await itemsCollection.updateOne(
+          { _id },
+          {
+            $set: {
+              isDeleted: false,
+              restoredAt: new Date(),
+              restoredBy: req.body?.restoredBy || null,
+              updatedAt: new Date(),
+            },
+            // unset deletedAt so TTL won't remove restored item
+            $unset: { deletedAt: "", deletedBy: "" },
+          }
+        );
+
+        // create notification on ITEM restore
+        await createNotification({
+          userEmail: req.body?.restoredBy || null,
+          type: "ITEM_RESTORED",
+          title: "Item restored",
+          message: `“${item.title || "Untitled"}” has been restored successfully.`,
+          link: "/dashboard/items",
+          entity: { kind: "item", id },
+        });
+
+        res.send({ ok: true, restored: true });
+      } catch (err) {
+        console.error(err);
+        res.status(400).send("Invalid item id");
+      }
+    });
+
+    // RESTORE Lost Report (undo soft delete)
+    app.patch("/lostreports/:id/restore", async (req, res) => {
+      const { id } = req.params;
+
+      try {
+        const _id = new ObjectId(id);
+
+        const report = await lostReportsCollection.findOne({ _id, isDeleted: true });
+        if (!report) return res.status(404).send("Lost report not found in recycle bin");
 
 
+        await lostReportsCollection.updateOne(
+          { _id },
+          {
+            $set: {
+              isDeleted: false,
+              restoredAt: new Date(),
+              restoredBy: req.body?.restoredBy || null,
+              updatedAt: new Date(),
+            },
+            // unset deletedAt so TTL won't remove restored report
+            $unset: { deletedAt: "", deletedBy: "" },
+          }
+        );
 
+        // notify student 
+        await createNotification({
+          userEmail: report.userEmail,
+          type: "LOSTREPORT_RESTORED",
+          title: "Lost report restored",
+          message: `“${report.title || "Untitled"}” has been restored successfully.`,
+          link: "/app/lost-reports",
+          entity: { kind: "lostreport", id },
+        });
+
+        res.send({ ok: true, restored: true });
+      } catch (err) {
+        console.error(err);
+        res.status(400).send("Invalid report id");
+      }
+    });
+
+    // -----------------------
+    // RECYCLE BIN LIST
+    // ----------------------- 
+
+    app.get("/api/recycle-bin", async (req, res) => {
+      try {
+        const { role, userEmail } = req.query;
+
+        if (!role) {
+          return res
+            .status(400)
+            .json({ success: false, message: "role is required" });
+        }
+
+        if (role === "admin" || role === "staff") {
+          const deletedItems = await itemsCollection
+            .find({ isDeleted: true })
+            .sort({ deletedAt: -1 })
+            .toArray();
+          const data = deletedItems.map((doc) => ({
+            ...doc,
+            displayName: doc.title || doc.name || "(no title)",
+          }));
+
+          return res.json({ success: true, entityType: "items", data });
+        }
+
+
+        if (role === "student") {
+          if (!userEmail) {
+            return res.status(400).json({
+              success: false,
+              message: "userEmail is required for students",
+            });
+          }
+
+          const deletedReports = await lostReportsCollection
+            .find({ isDeleted: true, userEmail })
+            .sort({ deletedAt: -1 })
+            .toArray();
+
+          const data = deletedReports.map((doc) => ({
+            ...doc,
+            displayName: doc.title || doc.name || "(no title)",
+          }));
+
+          return res.json({ success: true, entityType: "lostreports", data });
+        }
+
+        return res
+          .status(400)
+          .json({ success: false, message: "Unknown role" });
+      } catch (err) {
+        console.error(err);
+        return res
+          .status(500)
+          .json({ success: false, message: "Failed to load recycle bin" });
+      }
+    });
+
+    // -----------------------
+    // NOTIFICATIONS ROUTES
+    // -----------------------
+
+    // GET /notifications?userEmail=...&limit=50
+    app.get("/notifications", async (req, res) => {
+      try {
+        const { userEmail, limit = 50 } = req.query;
+        if (!userEmail) return res.status(400).json({ message: "userEmail is required" });
+
+        const limitNum = Math.min(parseInt(limit, 10) || 50, 100);
+
+        const data = await notificationsCollection
+          .find({ userEmail })
+          .sort({ createdAt: -1 })
+          .limit(limitNum)
+          .toArray();
+
+        res.json({ success: true, data });
+      } catch (err) {
+        console.error("GET /notifications error:", err);
+        res.status(500).json({ success: false, message: "Failed to load notifications" });
+      }
+    });
+
+    // PATCH /notifications/:id/read
+    app.patch("/notifications/:id/read", async (req, res) => {
+      try {
+        const { id } = req.params;
+        if (!ObjectId.isValid(id)) return res.status(400).json({ message: "Invalid id" });
+
+        const result = await notificationsCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $set: { isRead: true, readAt: new Date() } }
+        );
+
+        res.json({ success: true, updated: result.modifiedCount === 1 });
+      } catch (err) {
+        console.error("PATCH /notifications/:id/read error:", err);
+        res.status(500).json({ success: false, message: "Failed to mark as read" });
+      }
+    });
+
+    // PATCH /notifications/read-all?userEmail=...
+    app.patch("/notifications/read-all", async (req, res) => {
+      try {
+        const { userEmail } = req.query;
+        if (!userEmail) return res.status(400).json({ message: "userEmail is required" });
+
+        const result = await notificationsCollection.updateMany(
+          { userEmail, isRead: false },
+          { $set: { isRead: true, readAt: new Date() } }
+        );
+
+        res.json({ success: true, updatedCount: result.modifiedCount });
+      } catch (err) {
+        console.error("PATCH /notifications/read-all error:", err);
+        res.status(500).json({ success: false, message: "Failed to mark all as read" });
+      }
+    });
+
+
+    // GET /notifications/unread-count?userEmail=...
+    app.get("/notifications/unread-count", async (req, res) => {
+      try {
+        const { userEmail } = req.query;
+        if (!userEmail) return res.status(400).json({ message: "userEmail is required" });
+
+        const count = await notificationsCollection.countDocuments({
+          userEmail,
+          isRead: false,
+        });
+
+        res.json({ success: true, count });
+      } catch (err) {
+        console.error("GET /notifications/unread-count error:", err);
+        res.status(500).json({ success: false, message: "Failed to load unread count" });
+      }
+    });
 
 
     // Send a ping to confirm a successful connection

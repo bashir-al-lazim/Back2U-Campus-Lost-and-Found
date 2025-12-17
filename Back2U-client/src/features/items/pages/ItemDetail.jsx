@@ -15,8 +15,10 @@ import { toast } from 'react-toastify';
 const ItemDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+
   const [item, setItem] = useState(null);
   const [loading, setLoading] = useState(true);
+
   const [error, setError] = useState(null);
   const { user, role } = useContext(AuthContext);
 
@@ -83,19 +85,36 @@ const ItemDetail = () => {
   const fetchItemDetail = async () => {
     setLoading(true);
     setError(null);
+    setItem(null);
 
     try {
       const response = await fetch(`http://localhost:5000/api/items/${id}`);
+
+      // if item is deleted OR not found, backend returns 404
+      if (response.status === 404) {
+        setError(
+          "This item is not available. It may have been deleted or the link is invalid."
+        );
+        return;
+      }
+
+      // ✅ handle other server errors
+      if (!response.ok) {
+        setError(`Failed to load item details (status ${response.status})`);
+        return;
+      }
+
+      // ✅ safe JSON parse
       const data = await response.json();
 
-      if (data.success) {
+      if (data?.success && data?.data) {
         setItem(data.data);
       } else {
-        throw new Error(data.message || 'Failed to load item details');
+        setError(data?.message || "Failed to load item details");
       }
     } catch (err) {
-      setError(err.message || 'Failed to load item details');
-      console.error('Error fetching item:', err);
+      console.error("Error fetching item:", err);
+      setError(err?.message || "Failed to load item details");
     } finally {
       setLoading(false);
     }
@@ -109,6 +128,7 @@ const ItemDetail = () => {
     );
   }
 
+  // friendly UI for deleted/not found (404)
   if (error) {
     return (
       <div className="min-h-[calc(100vh-16.325rem)] m-auto px-12 sm:px-0 mx-auto pt-36">
@@ -125,21 +145,19 @@ const ItemDetail = () => {
     );
   }
 
-  // if (!item) {
-  //   return (
-  //     <div className="pt-9">
-  //       <div className="error-message">
-  //         <p>Item not found</p>
-  //         <button
-  //           className="btn btn-primary"
-  //           onClick={() => navigate('/app/items')}
-  //         >
-  //           Back to Items
-  //         </button>
-  //       </div>
-  //     </div>
-  //   );
-  // }
+  // Extra safety (should rarely happen now)
+  if (!item) {
+    return (
+      <div className="container">
+        <div className="error-message">
+          <p>Item not found</p>
+          <button className="btn btn-primary" onClick={() => navigate("/app/items")}>
+            Back to Items
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="item-detail">
@@ -173,12 +191,10 @@ const ItemDetail = () => {
             <div className="detail-image-wrapper">
               <img
                 src={item.photoUrl || item.photo}
-                alt={item.title}
+                alt={item.title || "Item"}
                 className="detail-image"
               />
-              <span
-                className={`badge badge-${item.status.toLowerCase()} detail-badge`}
-              >
+              <span className={`badge badge-${(item.status || "open").toLowerCase()} detail-badge`}>
                 {item.status}
               </span>
             </div>
@@ -212,24 +228,25 @@ const ItemDetail = () => {
                     </p>
                   </div>
                 </div>
+
                 <div className="info-item">
                   <span className="info-icon">📅</span>
                   <div>
                     <p className="info-label">Date Found</p>
                     <p className="info-value">
-                      {format(new Date(item.dateFound), 'MMMM dd, yyyy')}
+                      {item.dateFound ? format(new Date(item.dateFound), "MMMM dd, yyyy") : "-"}
                     </p>
                   </div>
                 </div>
+
                 <div className="info-item">
                   <span className="info-icon">⏰</span>
                   <div>
                     <p className="info-label">Posted On</p>
                     <p className="info-value">
-                      {format(
-                        new Date(item.createdAt),
-                        'MMMM dd, yyyy - hh:mm a'
-                      )}
+                      {item.createdAt
+                        ? format(new Date(item.createdAt), "MMMM dd, yyyy - hh:mm a")
+                        : "-"}
                     </p>
                   </div>
                 </div>
@@ -242,29 +259,27 @@ const ItemDetail = () => {
                 <h3 className="section-title">Posted By</h3>
                 <div className="user-info">
                   <img
-                    src={item.postedBy.avatar || '/default-avatar.png'}
-                    alt={item.postedBy.name}
+                    src={item.postedBy.avatar || "/default-avatar.png"}
+                    alt={item.postedBy.name || "User"}
                     className="user-avatar-large"
                   />
                   <div>
                     <p className="user-name-large">{item.postedBy.name}</p>
                     <p className="user-email">{item.postedBy.email}</p>
-                    <span className="badge badge-open">
-                      {item.postedBy.role}
-                    </span>
+                    <span className="badge badge-open">{item.postedBy.role}</span>
                   </div>
                 </div>
               </div>
             )}
 
             {/* Claimed By */}
-            {item.status === 'Claimed' && item.claimedBy && (
+            {item.status === "Claimed" && item.claimedBy && (
               <div className="detail-section claimed-section">
                 <h3 className="section-title">Claimed By</h3>
                 <div className="user-info">
                   <img
-                    src={item.claimedBy.avatar || '/default-avatar.png'}
-                    alt={item.claimedBy.name}
+                    src={item.claimedBy.avatar || "/default-avatar.png"}
+                    alt={item.claimedBy.name || "User"}
                     className="user-avatar-large"
                   />
                   <div>
@@ -275,7 +290,7 @@ const ItemDetail = () => {
               </div>
             )}
 
-            {item.status === 'Resolved' && (
+            {item.status === "Resolved" && (
               <div className="resolved-message">
                 <span className="resolved-icon">✅</span>
                 <p>This item has been successfully returned to its owner!</p>

@@ -9,7 +9,7 @@ const normalizeReport = (report) => ({
 });
 
 export async function fetchLostReports(userEmail) {
-  const url = userEmail 
+  const url = userEmail
     ? `${BASE_URL}/lostreports?userEmail=${encodeURIComponent(userEmail)}`
     : `${BASE_URL}/lostreports`;
   const res = await fetch(url);
@@ -47,10 +47,14 @@ export async function updateLostReport(id, payload) {
   return normalizeReport(data);
 }
 
-export async function deleteLostReport(id) {
+//  FEATURE 13
+export async function deleteLostReport(id, deletedByEmail = null) {
   const res = await fetch(`${BASE_URL}/lostreports/${id}`, {
-    method: 'DELETE',
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ deletedBy: deletedByEmail }) 
   });
-  if (!res.ok) throw new Error('Failed to delete lost report');
+
+  if (!res.ok) throw new Error("Failed to delete lost report");
   return true;
 }

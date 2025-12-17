@@ -37,10 +37,14 @@ export async function updateItem(id, payload) {
   return normalizeItem(data);
 }
 
-export async function deleteItem(id) {
+// FEATURE 13: soft delete metadata support
+export async function deleteItem(id, deletedByEmail = null) {
   const res = await fetch(`${BASE_URL}/items/${id}`, {
-    method: 'DELETE',
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ deletedBy: deletedByEmail }) // who deleted it
   });
-  if (!res.ok) throw new Error('Failed to delete item');
+
+  if (!res.ok) throw new Error("Failed to delete item");
   return true;
 }
