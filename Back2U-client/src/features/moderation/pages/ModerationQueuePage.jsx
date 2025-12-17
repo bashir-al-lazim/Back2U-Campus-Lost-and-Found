@@ -451,7 +451,7 @@ const ModerationQueuePage = () => {
                     {viewMode === "reports" ? (
                         <button
                             type="button"
-                            className="btn btn-sm btn-outline"
+                            className="text-sm font-semibold border-2 border-black hover:bg-black hover:text-white transition-all duration-300 rounded-md px-3 py-1.5"
                             onClick={loadReports}
                         >
                             Refresh reports
