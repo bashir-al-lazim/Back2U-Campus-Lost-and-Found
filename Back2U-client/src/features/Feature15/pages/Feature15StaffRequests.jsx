@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
-import { toast } from "react-toastify";
+import { toast, ToastContainer } from "react-toastify";
 import { getAuth } from "firebase/auth";
 
 const API = "http://localhost:5000";
@@ -13,14 +13,11 @@ export default function Feature15StaffRequest() {
   // Fetch all pending handoff requests
   const fetchHandoffItems = async () => {
     try {
+      setLoading(true);
       const token = await auth.currentUser.getIdToken(true);
-
       const res = await axios.get(`${API}/feature15/requests`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
-
       setItems(res.data.data || []);
     } catch (err) {
       console.error("Fetch staff requests error:", err);
@@ -38,20 +35,39 @@ export default function Feature15StaffRequest() {
   const confirmReceipt = async (itemId) => {
     try {
       const token = await auth.currentUser.getIdToken(true);
-
       await axios.post(
         `${API}/feature15/confirm/${itemId}`,
         {},
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
+        { headers: { Authorization: `Bearer ${token}` } }
       );
 
       toast.success("Item added to official inventory");
-      fetchHandoffItems(); // refresh list
+
+      // Remove confirmed item from the list immediately
+      setItems((prev) => prev.filter((item) => item._id !== itemId));
     } catch (err) {
       console.error("Confirm receipt error:", err);
       toast.error("Failed to confirm receipt");
+    }
+  };
+
+  // Reject handoff request
+  const rejectRequest = async (itemId) => {
+    try {
+      const token = await auth.currentUser.getIdToken(true);
+      await axios.post(
+        `${API}/feature15/reject/${itemId}`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      toast.success("Handover request was rejected");
+
+      // Remove rejected item from the list immediately
+      setItems((prev) => prev.filter((item) => item._id !== itemId));
+    } catch (err) {
+      console.error("Reject request error:", err);
+      toast.error("Failed to reject handoff request");
     }
   };
 
@@ -75,16 +91,25 @@ export default function Feature15StaffRequest() {
                 <p>Student: {item.studentEmail}</p>
                 <p>Status: {item.status}</p>
               </div>
-              <button
-                className="btn btn-success"
-                onClick={() => confirmReceipt(item._id)}
-              >
-                Confirm Receipt
-              </button>
+              <div className="flex gap-2">
+                <button
+                  className="btn btn-success"
+                  onClick={() => confirmReceipt(item._id)}
+                >
+                  Confirm Receipt
+                </button>
+                <button
+                  className="btn btn-error"
+                  onClick={() => rejectRequest(item._id)}
+                >
+                  Reject Handover
+                </button>
+              </div>
             </li>
           ))}
         </ul>
       )}
+      <ToastContainer position="bottom-right" autoClose={5000} theme="light" />
     </div>
   );
 }
