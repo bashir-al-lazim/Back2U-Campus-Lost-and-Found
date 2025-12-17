@@ -43,9 +43,10 @@ export default function MyLostReportsPage() {
     if (!result.isConfirmed) return;
 
     try {
-      
-      await deleteLostReport(id, user?.email); 
+
+      await deleteLostReport(id, user?.email);
       toast.success('Report deleted successfully');
+      window.dispatchEvent(new Event("notifications:refresh"));
       loadReports();
     } catch (err) {
       console.error(err);
@@ -93,13 +94,12 @@ export default function MyLostReportsPage() {
               <div className="flex justify-between items-start mb-2">
                 <h3 className="font-semibold text-lg">{report.title}</h3>
                 <span
-                  className={`px-2 py-1 text-xs rounded ${
-                    report.status === 'Active'
+                  className={`px-2 py-1 text-xs rounded ${report.status === 'Active'
                       ? 'bg-green-100 text-green-800'
                       : report.status === 'Resolved'
-                      ? 'bg-gray-100 text-gray-800'
-                      : 'bg-yellow-100 text-yellow-800'
-                  }`}
+                        ? 'bg-gray-100 text-gray-800'
+                        : 'bg-yellow-100 text-yellow-800'
+                    }`}
                 >
                   {report.status}
                 </span>

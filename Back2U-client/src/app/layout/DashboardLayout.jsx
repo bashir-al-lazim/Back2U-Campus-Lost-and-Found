@@ -7,6 +7,7 @@ import { MdReport } from "react-icons/md";
 import { FaDatabase, FaUsers } from "react-icons/fa";
 import { AuthContext } from "../providers/createProvider";
 import { toast, ToastContainer } from "react-toastify";
+import { FaTrashAlt } from "react-icons/fa";
 
 const DashboardLayout = () => {
 
@@ -137,8 +138,10 @@ const DashboardLayout = () => {
                     {["student", "staff", "admin"].includes(role) && (
                         <li>
                             <NavLink to="/dashboard/recycle-bin">
-                                🗑️ Recycle Bin
+                                <FaTrashAlt />
+                                Recycle Bin
                             </NavLink>
+
                         </li>
                     )}
 

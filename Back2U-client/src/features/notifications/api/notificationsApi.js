@@ -46,3 +46,14 @@ export async function fetchUnreadCount(userEmail) {
   const json = await res.json();
   return json.count || 0;
 }
+
+export async function deleteNotification(id, userEmail) {
+  const res = await fetch(`${BASE_URL}/notifications/${id}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ userEmail }),
+  });
+
+  if (!res.ok) throw new Error("Failed to delete notification");
+  return res.json();
+}

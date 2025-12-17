@@ -113,10 +113,6 @@ export default function RecycleBinPage() {
               ))}
             </tbody>
           </table>
-
-          <p className="text-xs text-gray-500 mt-3">
-            Note: Deleted records are permanently removed after 30 days.
-          </p>
         </div>
       )}
     </div>

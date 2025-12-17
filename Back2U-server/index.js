@@ -1663,7 +1663,7 @@ async function run() {
           updateDoc,
           { returnDocument: 'after' }
         );
-        
+
         // ✅ Notify student: handover verified
         await createNotification({
           userEmail: claim.claimantEmail,
@@ -2346,7 +2346,7 @@ async function run() {
     });
 
     // -----------------------
-    // RECYCLE BIN LIST
+    // RECYCLE BIN ROUTES
     // ----------------------- 
 
     app.get("/api/recycle-bin", async (req, res) => {
@@ -2484,6 +2484,36 @@ async function run() {
         res.status(500).json({ success: false, message: "Failed to load unread count" });
       }
     });
+    // DELETE /notifications/:id
+    app.delete("/notifications/:id", async (req, res) => {
+      try {
+        const { id } = req.params;
+        const { userEmail } = req.body || {};
+
+        if (!ObjectId.isValid(id)) {
+          return res.status(400).json({ success: false, message: "Invalid id" });
+        }
+        if (!userEmail) {
+          return res.status(400).json({ success: false, message: "userEmail is required" });
+        }
+
+        // Only allow deleting own notifications
+        const result = await notificationsCollection.deleteOne({
+          _id: new ObjectId(id),
+          userEmail,
+        });
+
+        if (result.deletedCount === 0) {
+          return res.status(404).json({ success: false, message: "Notification not found" });
+        }
+
+        res.json({ success: true, deleted: true });
+      } catch (err) {
+        console.error("DELETE /notifications/:id error:", err);
+        res.status(500).json({ success: false, message: "Failed to delete notification" });
+      }
+    });
+
 
 
     // Send a ping to confirm a successful connection
