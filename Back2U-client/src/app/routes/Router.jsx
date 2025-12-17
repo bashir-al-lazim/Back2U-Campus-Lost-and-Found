@@ -110,10 +110,6 @@ const router = createBrowserRouter([
                 element: <LostReportUpdatePage />,
             },
             {
-                path: "recycle-bin",
-                element: <RecycleBinPage />
-            },
-            {
                 path: "notifications",
                 element: <NotificationsPage />,
             },

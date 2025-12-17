@@ -31,5 +31,18 @@ export async function markAllNotificationsRead(userEmail) {
     { method: "PATCH" }
   );
   if (!res.ok) throw new Error("Failed to mark all as read");
-  return true;
+
+  const json = await res.json();
+  return json.updatedCount || 0; // ✅ return how many actually changed
+}
+
+
+
+export async function fetchUnreadCount(userEmail) {
+  const res = await fetch(
+    `${BASE_URL}/notifications/unread-count?userEmail=${encodeURIComponent(userEmail)}`
+  );
+  if (!res.ok) throw new Error("Failed to load unread count");
+  const json = await res.json();
+  return json.count || 0;
 }

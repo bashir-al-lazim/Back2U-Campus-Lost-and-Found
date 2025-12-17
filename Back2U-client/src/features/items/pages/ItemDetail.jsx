@@ -1,14 +1,6 @@
 // ========================
 // ITEM DETAIL VIEW
 // ========================
-<<<<<<< HEAD
-import React, { useState, useEffect, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { format } from "date-fns";
-import "../styles/ItemDetail.css";
-import ShareActions from "../../post_sharing/components/ShareActions";
-import MiniFlyer from "../../post_sharing/components/MiniFlyer";
-=======
 import React, { useState, useEffect, useRef, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
@@ -19,7 +11,6 @@ import CommentsSection from '../components/CommentsSection';
 import { AuthContext } from '../../../app/providers/createProvider';
 import { createReport } from '../../moderation/api/moderationApi';
 import { toast } from 'react-toastify';
->>>>>>> origin/development
 
 const ItemDetail = () => {
   const { id } = useParams();
@@ -99,7 +90,7 @@ const ItemDetail = () => {
     try {
       const response = await fetch(`http://localhost:5000/api/items/${id}`);
 
-      // Feature 13: if item is deleted OR not found, backend returns 404
+      // if item is deleted OR not found, backend returns 404
       if (response.status === 404) {
         setError(
           "This item is not available. It may have been deleted or the link is invalid."
@@ -137,17 +128,9 @@ const ItemDetail = () => {
     );
   }
 
-  // Feature 13 friendly UI for deleted/not found (404)
+  // friendly UI for deleted/not found (404)
   if (error) {
     return (
-<<<<<<< HEAD
-      <div className="container">
-        <div className="error-message">
-          <p>⚠️ {error}</p>
-
-          {/* ✅ FIX: your app items route is /app/items (not /items) */}
-          <button className="btn btn-primary" onClick={() => navigate("/app/items")}>
-=======
       <div className="min-h-[calc(100vh-16.325rem)] m-auto px-12 sm:px-0 mx-auto pt-36">
         <div className="grid grid-cols-1 justify-items-center space-y-4">
           <p className='text-red-500 font-bold text-2xl'>⚠️ {error}</p>
@@ -155,7 +138,6 @@ const ItemDetail = () => {
             className="btn bg-black text-white"
             onClick={() => navigate('/app/items')}
           >
->>>>>>> origin/development
             Back to Items
           </button>
         </div>
@@ -163,7 +145,6 @@ const ItemDetail = () => {
     );
   }
 
-<<<<<<< HEAD
   // Extra safety (should rarely happen now)
   if (!item) {
     return (
@@ -177,38 +158,10 @@ const ItemDetail = () => {
       </div>
     );
   }
-=======
-  // if (!item) {
-  //   return (
-  //     <div className="pt-9">
-  //       <div className="error-message">
-  //         <p>Item not found</p>
-  //         <button
-  //           className="btn btn-primary"
-  //           onClick={() => navigate('/app/items')}
-  //         >
-  //           Back to Items
-  //         </button>
-  //       </div>
-  //     </div>
-  //   );
-  // }
->>>>>>> origin/development
 
   return (
     <div className="item-detail">
       <div className="container">
-<<<<<<< HEAD
-        {/* Back Button */}
-        <div className="flex mt-12 gap-6">
-          <button className="btn btn-outline btn-md back-btn" onClick={() => navigate(-1)}>
-            ← Back
-          </button>
-
-          <div>
-            <ShareActions item={item} flyerRef={flyerRef} />
-            <MiniFlyer ref={flyerRef} item={item} />
-=======
         {/* Back + actions */}
         <div className="flex mt-12 gap-6 justify-between flex-wrap">
           <div className="flex gap-4 ">
@@ -222,7 +175,6 @@ const ItemDetail = () => {
               <ShareActions item={item} flyerRef={flyerRef} />
               <MiniFlyer ref={flyerRef} item={item} />
             </div>
->>>>>>> origin/development
           </div>
 
           <button
@@ -239,19 +191,10 @@ const ItemDetail = () => {
             <div className="detail-image-wrapper">
               <img
                 src={item.photoUrl || item.photo}
-<<<<<<< HEAD
                 alt={item.title || "Item"}
                 className="detail-image"
               />
               <span className={`badge badge-${(item.status || "open").toLowerCase()} detail-badge`}>
-=======
-                alt={item.title}
-                className="detail-image"
-              />
-              <span
-                className={`badge badge-${item.status.toLowerCase()} detail-badge`}
-              >
->>>>>>> origin/development
                 {item.status}
               </span>
             </div>
@@ -301,16 +244,9 @@ const ItemDetail = () => {
                   <div>
                     <p className="info-label">Posted On</p>
                     <p className="info-value">
-<<<<<<< HEAD
                       {item.createdAt
                         ? format(new Date(item.createdAt), "MMMM dd, yyyy - hh:mm a")
                         : "-"}
-=======
-                      {format(
-                        new Date(item.createdAt),
-                        'MMMM dd, yyyy - hh:mm a'
-                      )}
->>>>>>> origin/development
                     </p>
                   </div>
                 </div>
@@ -330,13 +266,7 @@ const ItemDetail = () => {
                   <div>
                     <p className="user-name-large">{item.postedBy.name}</p>
                     <p className="user-email">{item.postedBy.email}</p>
-<<<<<<< HEAD
                     <span className="badge badge-open">{item.postedBy.role}</span>
-=======
-                    <span className="badge badge-open">
-                      {item.postedBy.role}
-                    </span>
->>>>>>> origin/development
                   </div>
                 </div>
               </div>

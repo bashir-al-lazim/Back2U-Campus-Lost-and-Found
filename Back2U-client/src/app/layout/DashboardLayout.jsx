@@ -89,11 +89,6 @@ const DashboardLayout = () => {
                                 </NavLink>
                             </li>
                             <li>
-                                <NavLink to="/dashboard/recycle-bin">
-                                    🗑️ Recycle Bin
-                                </NavLink>
-                            </li>
-                            <li>
                                 <NavLink to="/dashboard/claims">
                                     <HiMiniClipboardDocumentCheck />
                                     Claim Management
@@ -137,6 +132,14 @@ const DashboardLayout = () => {
                                 </NavLink>
                             </li>
                         </>
+                    )}
+
+                    {["student", "staff", "admin"].includes(role) && (
+                        <li>
+                            <NavLink to="/dashboard/recycle-bin">
+                                🗑️ Recycle Bin
+                            </NavLink>
+                        </li>
                     )}
 
                     {/* shared nav links */}

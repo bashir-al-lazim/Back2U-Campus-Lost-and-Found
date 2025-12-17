@@ -1,12 +1,35 @@
-import { useContext, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { AuthContext } from "../../app/providers/createProvider";
 import { toast } from "react-toastify";
+import { fetchUnreadCount } from "../../features/notifications/api/notificationsApi";
+
+
 
 const Nav = () => {
   const { user, signOutUser, role } = useContext(AuthContext);
 
   const [scroll, setScroll] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    const loadUnread = async () => {
+      try {
+        if (!user?.email) {
+          setUnreadCount(0);
+          return;
+        }
+
+        const count = await fetchUnreadCount(user.email);
+        setUnreadCount(count);
+      } catch (err) {
+        console.error("Failed to load unread count", err);
+      }
+    };
+
+    loadUnread();
+  }, [user?.email]);
+
 
   window.addEventListener("scroll", () => {
     if (window.scrollY > 112) {
@@ -29,15 +52,14 @@ const Nav = () => {
       ? "text-black border-yellow-400 py-[0.575rem] px-5 border-[0.1rem] transition duration-500 rounded-lg bg-base-100"
       : "text-black py-[0.575rem] px-5 border-[0.1rem] border-transparent hover:text-[#898888]";
 
-  const showStudentRecycleBin = user && role === "student";
+
 
   const showNotifications = !!user;
 
   return (
     <div
-      className={`${
-        scroll ? "fixed top-0" : "absolute"
-      } transition-all duration-500 bg-[#8b8b8b58] z-50 shadow-lg w-full max-w-[89.9rem] rounded-b-2xl`}
+      className={`${scroll ? "fixed top-0" : "absolute"
+        } transition-all duration-500 bg-[#8b8b8b58] z-50 shadow-lg w-full max-w-[89.9rem] rounded-b-2xl`}
     >
       <div className="sm:py-3 py-2 w-full pl-4 pr-7 navbar">
         <div className="flex items-center navbar-start">
@@ -94,18 +116,6 @@ const Nav = () => {
                 My Lost Reports
               </NavLink>
 
-              {showStudentRecycleBin && (
-                <NavLink
-                  to="/app/recycle-bin"
-                  className={({ isActive }) =>
-                    isActive
-                      ? "px-5 py-2 bg-base-100 border-[0.1rem] border-yellow-400 rounded-lg"
-                      : "px-5 py-2 bg-base-100 border-[0.1rem] border-b-[#898888] hover:text-[#898888] border-transparent"
-                  }
-                >
-                  Recycle Bin
-                </NavLink>
-              )}
 
               {showNotifications && (
                 <NavLink
@@ -116,9 +126,15 @@ const Nav = () => {
                       : "px-5 py-2 bg-base-100 border-[0.1rem] border-b-[#898888] hover:text-[#898888] border-transparent"
                   }
                 >
-                  Notifications
+                  <span className="inline-flex items-center gap-2">
+                    Notifications
+                    {unreadCount > 0 && (
+                      <span className="badge badge-warning badge-sm">{unreadCount}</span>
+                    )}
+                  </span>
                 </NavLink>
               )}
+
             </ul>
           </div>
 
@@ -146,17 +162,17 @@ const Nav = () => {
               My Lost Reports
             </NavLink>
 
-            {showStudentRecycleBin && (
-              <NavLink to="/app/recycle-bin" className={pages}>
-                Recycle Bin
+            {showNotifications && (
+              <NavLink to="/app/notifications" className={pages}>
+                <span className="inline-flex items-center gap-2">
+                  Notifications
+                  {unreadCount > 0 && (
+                    <span className="badge badge-warning badge-sm">{unreadCount}</span>
+                  )}
+                </span>
               </NavLink>
             )}
 
-            {showNotifications && (
-              <NavLink to="/app/notifications" className={pages}>
-                Notifications
-              </NavLink>
-            )}
           </ul>
         </div>
 

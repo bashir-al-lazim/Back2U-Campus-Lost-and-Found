@@ -85,8 +85,7 @@ async function run() {
     }
 
 
-
-    // FEATURE 13: TTL permanent delete after 30 days
+    // TTL permanent delete after 30 days
     await itemsCollection.createIndex(
       { deletedAt: 1 },
       {
@@ -103,7 +102,7 @@ async function run() {
       }
     );
 
-    // FEATURE 6: Notifications index 
+    // Notifications index 
     await notificationsCollection.createIndex(
       { userEmail: 1, isRead: 1, createdAt: -1 }
     );
@@ -121,6 +120,8 @@ async function run() {
     }) {
       if (!userEmail) return;
 
+      const now = new Date();
+
       await notificationsCollection.insertOne({
         userEmail,
         type,
@@ -129,10 +130,49 @@ async function run() {
         link,
         entity,
         isRead: false,
-        createdAt: new Date(),
+        createdAt: now,
         readAt: null,
       });
+
+      // ✅ Keep only latest 50 notifications per user (delete oldest)
+      const count = await notificationsCollection.countDocuments({ userEmail });
+
+      if (count > 50) {
+        const extra = count - 50;
+
+        const oldest = await notificationsCollection
+          .find({ userEmail })
+          .sort({ createdAt: 1 }) // oldest first
+          .limit(extra)
+          .project({ _id: 1 })
+          .toArray();
+
+        if (oldest.length > 0) {
+          await notificationsCollection.deleteMany({
+            _id: { $in: oldest.map((d) => d._id) },
+          });
+        }
+      }
     }
+    // ✅ Notify all staff/admin users (for claim-created alerts)
+    async function notifyAuthorities(notification) {
+      const authorities = await authorityCollection
+        .find({ role: { $in: ["admin", "staff"] } })
+        .project({ email: 1 })
+        .toArray();
+
+      await Promise.all(
+        authorities
+          .filter((a) => a?.email)
+          .map((a) =>
+            createNotification({
+              ...notification,
+              userEmail: a.email,
+            })
+          )
+      );
+    }
+
 
     // -----------------------
     // AUTHORITY ROUTE
@@ -606,9 +646,10 @@ async function run() {
     // -----------------------
     // ITEMS CRUD
     // -----------------------
-    // FEATURE 13: hide soft-deleted and hidden items 
-    app.get("/items", async (req, res) => {              //check for errors by feature testing and  is the expected data loading or missing something?,
-      try {                                             // I just removed the syntax error that was present
+
+    // hide soft-deleted and hidden items 
+    app.get("/items", async (req, res) => {
+      try {
         const items = await itemsCollection
           .find({
             isDeleted: { $ne: true },
@@ -685,8 +726,6 @@ async function run() {
     });
 
 
-
-    //  FEATURE 13: SOFT DELETE 
     // DELETE item
     app.delete("/items/:id", async (req, res) => {
       const { id } = req.params;
@@ -708,7 +747,7 @@ async function run() {
             },
           }
         );
-        //  FEATURE 6: create notification on ITEM delete 
+        // create notification on ITEM delete 
         await createNotification({
           userEmail: req.body?.deletedBy || null,
           type: "ITEM_DELETED",
@@ -723,21 +762,20 @@ async function run() {
         console.error(err);
         res.status(400).send("Invalid item id");
       }
-    }); // f13 
+    });
 
 
     // -----------------------
     // LOST REPORTS CRUD
     // -----------------------
 
-    // FEATURE 13
     app.get("/lostreports", async (req, res) => {
       try {
         const { userEmail } = req.query;
 
         const filter = {
           ...(userEmail ? { userEmail } : {}),
-          isDeleted: { $ne: true },   // ✅ NEW         //check for errors by testing features, is the expected data loading or missing something?
+          isDeleted: { $ne: true },   // ✅ NEW         
           hidden: { $ne: true }, // 🚫 do not return hidden lost reports in normal views
         };
 
@@ -816,7 +854,7 @@ async function run() {
 
 
 
-    // FEATURE 13: SOFT DELETE Lost Report 
+    // SOFT DELETE Lost Report 
     app.delete("/lostreports/:id", async (req, res) => {
       const { id } = req.params;
 
@@ -838,13 +876,13 @@ async function run() {
           }
         );
 
-        // FEATURE 6 
+        // create notification on lost report delete  
         await createNotification({
           userEmail: report.userEmail,
           type: "LOSTREPORT_DELETED",
           title: "Lost report moved to Recycle Bin",
           message: `“${report.title || "Untitled"}” was deleted. You can restore it from Recycle Bin.`,
-          link: "/app/recycle-bin",
+          link: "/dashboard/recycle-bin",
           entity: { kind: "lostreport", id },
         });
 
@@ -1111,7 +1149,7 @@ async function run() {
         } = req.query;
 
         const query = {};
-        //  FEATURE 13: exclude deleted items everywhere in discovery/share
+        // exclude deleted items everywhere in discovery/share
         query.isDeleted = { $ne: true };
 
 
@@ -1251,6 +1289,15 @@ async function run() {
         };
 
         const result = await claimsCollection.insertOne(newClaim);
+        // ✅ Claim created → notify staff/admin
+        await notifyAuthorities({
+          type: "CLAIM_CREATED",
+          title: "New claim submitted",
+          message: `A new claim was submitted for “${item.title || "item"}”.`,
+          link: `/dashboard/claims/${result.insertedId}`,
+          entity: { kind: "claim", id: String(result.insertedId), itemId: String(claimData.itemId) },
+        });
+
         res.status(201).json({
           success: true,
           message: 'Claim submitted successfully. Waiting for staff review.',
@@ -1342,6 +1389,15 @@ async function run() {
         };
 
         const result = await claimsCollection.insertOne(newClaim);
+        // ✅ Claim created → notify staff/admin
+        await notifyAuthorities({
+          type: "CLAIM_CREATED",
+          title: "New claim submitted",
+          message: `A new claim was submitted for “${item.title || "item"}”.`,
+          link: `/dashboard/claims/${result.insertedId}`,
+          entity: { kind: "claim", id: String(result.insertedId), itemId: String(itemId) },
+        });
+
 
         return res.status(201).json({
           success: true,
@@ -1435,6 +1491,18 @@ async function run() {
           { returnDocument: 'after' }
         );
 
+
+        // ✅ Notify student 
+        await createNotification({
+          userEmail: claim.claimantEmail,
+          type: "CLAIM_ACCEPTED",
+          title: "Claim accepted",
+          message: `Your claim for “${claim.itemTitle || "item"}” was accepted. Please check My Claims for details.`,
+          link: "/dashboard/my-claims",
+          entity: { kind: "claim", id: String(_id), itemId: claim.itemId },
+        });
+
+
         return res.json({
           message: 'Claim accepted successfully.',
           ...result.value
@@ -1484,6 +1552,18 @@ async function run() {
           updateDoc,
           { returnDocument: 'after' }
         );
+
+
+        // ✅ Notify student
+        await createNotification({
+          userEmail: claim.claimantEmail,
+          type: "CLAIM_REJECTED",
+          title: "Claim rejected",
+          message: `Your claim for “${claim.itemTitle || "item"}” was rejected. Please check My Claims for details.`,
+          link: "/dashboard/my-claims",
+          entity: { kind: "claim", id: String(_id), itemId: claim.itemId },
+        });
+
 
         return res.status(200).json(result.value);
       } catch (error) {
@@ -1583,6 +1663,16 @@ async function run() {
           updateDoc,
           { returnDocument: 'after' }
         );
+        
+        // ✅ Notify student: handover verified
+        await createNotification({
+          userEmail: claim.claimantEmail,
+          type: "HANDOVER_VERIFIED",
+          title: "Handover verified",
+          message: `Your handover for “${claim.itemTitle || "item"}” was verified successfully.`,
+          link: "/dashboard/my-claims",
+          entity: { kind: "claim", id: String(claim._id), itemId: String(claim.itemId) },
+        });
 
         return res.json({
           message: 'Item successfully handed over.',
@@ -2168,13 +2258,10 @@ async function run() {
     });
 
 
+    // -----------------------
+    // RESTORE Item (undo soft delete)
+    // ----------------------- 
 
-
-
-
-
-
-    // FEATURE 13: RESTORE Item (undo soft delete)
     app.patch("/items/:id/restore", async (req, res) => {
       const { id } = req.params;
 
@@ -2199,7 +2286,7 @@ async function run() {
           }
         );
 
-        // FEATURE 6: create notification on ITEM restore
+        // create notification on ITEM restore
         await createNotification({
           userEmail: req.body?.restoredBy || null,
           type: "ITEM_RESTORED",
@@ -2216,7 +2303,7 @@ async function run() {
       }
     });
 
-    // FEATURE 13: RESTORE Lost Report (undo soft delete)
+    // RESTORE Lost Report (undo soft delete)
     app.patch("/lostreports/:id/restore", async (req, res) => {
       const { id } = req.params;
 
@@ -2241,7 +2328,7 @@ async function run() {
           }
         );
 
-        // FEATURE 6: notify student 
+        // notify student 
         await createNotification({
           userEmail: report.userEmail,
           type: "LOSTREPORT_RESTORED",
@@ -2258,7 +2345,10 @@ async function run() {
       }
     });
 
-    // FEATURE 13: RECYCLE BIN LIST 
+    // -----------------------
+    // RECYCLE BIN LIST
+    // ----------------------- 
+
     app.get("/api/recycle-bin", async (req, res) => {
       try {
         const { role, userEmail } = req.query;
@@ -2315,6 +2405,9 @@ async function run() {
       }
     });
 
+    // -----------------------
+    // NOTIFICATIONS ROUTES
+    // -----------------------
 
     // GET /notifications?userEmail=...&limit=50
     app.get("/notifications", async (req, res) => {
@@ -2370,6 +2463,25 @@ async function run() {
       } catch (err) {
         console.error("PATCH /notifications/read-all error:", err);
         res.status(500).json({ success: false, message: "Failed to mark all as read" });
+      }
+    });
+
+
+    // GET /notifications/unread-count?userEmail=...
+    app.get("/notifications/unread-count", async (req, res) => {
+      try {
+        const { userEmail } = req.query;
+        if (!userEmail) return res.status(400).json({ message: "userEmail is required" });
+
+        const count = await notificationsCollection.countDocuments({
+          userEmail,
+          isRead: false,
+        });
+
+        res.json({ success: true, count });
+      } catch (err) {
+        console.error("GET /notifications/unread-count error:", err);
+        res.status(500).json({ success: false, message: "Failed to load unread count" });
       }
     });
 

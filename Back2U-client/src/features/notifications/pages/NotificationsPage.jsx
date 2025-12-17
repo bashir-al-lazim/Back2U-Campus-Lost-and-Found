@@ -49,8 +49,18 @@ export default function NotificationsPage() {
   const handleReadAll = async () => {
     try {
       if (!user?.email) return;
-      await markAllNotificationsRead(user.email);
-      toast.success("Marked all as read");
+
+      // ✅ if there are no notifications, don't show any toast
+      if (list.length === 0) return;
+
+      const updatedCount = await markAllNotificationsRead(user.email);
+
+      if (updatedCount > 0) {
+        toast.success("Marked all as read");
+      } else {
+        toast.info("All notifications are already read");
+      }
+
       load();
     } catch (err) {
       console.error(err);
@@ -58,14 +68,16 @@ export default function NotificationsPage() {
     }
   };
 
+
+
   if (loading) return <div className="p-6">Loading notifications...</div>;
 
   return (
-    <div className="w-full p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-2xl font-semibold">Notifications</h2>
+    <div className="w-full p-6 pt-28">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
 
-        <button className="btn btn-sm" onClick={handleReadAll}>
+
+        <button type="button" className="btn btn-sm" onClick={handleReadAll}>
           Mark all as read
         </button>
       </div>
@@ -77,9 +89,8 @@ export default function NotificationsPage() {
           {list.map((n) => (
             <div
               key={n.id}
-              className={`p-4 rounded-lg border cursor-pointer ${
-                n.isRead ? "bg-base-100" : "bg-yellow-50"
-              }`}
+              className={`p-4 rounded-lg border cursor-pointer ${n.isRead ? "bg-base-100" : "bg-yellow-50"
+                }`}
               onClick={() => handleOpen(n)}
             >
               <div className="flex items-center justify-between">
