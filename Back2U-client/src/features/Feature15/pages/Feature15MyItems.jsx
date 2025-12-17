@@ -2,15 +2,18 @@ import { useContext, useEffect, useState } from "react";
 import axios from "axios";
 import { AuthContext } from "../../../app/providers/createProvider";
 import { toast } from "react-toastify";
+import { getAuth } from "firebase/auth";
 
 const API = "http://localhost:5000";
 
 export default function Feature15MyItems() {
   const { user, loading: authLoading } = useContext(AuthContext);
-  console.log("Logged-in user email:", user?.email) //del later
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [requesting, setRequesting] = useState({});
+  const [deleting, setDeleting] = useState({});
+
+  const auth = getAuth();
 
   // Fetch student's peer-held items
   useEffect(() => {
@@ -38,12 +41,19 @@ export default function Feature15MyItems() {
     setRequesting((prev) => ({ ...prev, [itemId]: true }));
 
     try {
-      const res = await axios.post(`${API}/feature15/handoff-request/${itemId}`);
+      const token = await auth.currentUser.getIdToken(true);
+      const res = await axios.post(
+        `${API}/feature15/handoff-request/${itemId}`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
 
       if (res.data.success) {
         setItems((prev) =>
           prev.map((item) =>
-            item._id === itemId ? { ...item, handoffRequested: true, status: "Handoff Requested" } : item
+            item._id === itemId
+              ? { ...item, handoffRequested: true, status: "Handoff Requested" }
+              : item
           )
         );
         toast.success("Handoff requested successfully!");
@@ -55,6 +65,32 @@ export default function Feature15MyItems() {
       toast.error(err.response?.data?.message || "Error requesting handoff");
     } finally {
       setRequesting((prev) => ({ ...prev, [itemId]: false }));
+    }
+  };
+
+  // Delete item
+  const handleDeleteItem = async (itemId) => {
+    if (!window.confirm("Are you sure you want to delete this item?")) return;
+
+    setDeleting((prev) => ({ ...prev, [itemId]: true }));
+
+    try {
+      const token = await auth.currentUser.getIdToken(true);
+      const res = await axios.delete(`${API}/feature15/item/${itemId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (res.data.success) {
+        setItems((prev) => prev.filter((item) => item._id !== itemId));
+        toast.success("Item deleted successfully!");
+      } else {
+        toast.error(res.data.message || "Failed to delete item");
+      }
+    } catch (err) {
+      console.error("Delete item failed:", err);
+      toast.error(err.response?.data?.message || "Error deleting item");
+    } finally {
+      setDeleting((prev) => ({ ...prev, [itemId]: false }));
     }
   };
 
@@ -89,21 +125,33 @@ export default function Feature15MyItems() {
                 </p>
               </div>
 
-              <button
-                disabled={item.handoffRequested || requesting[item._id]}
-                onClick={() => handleHandoffRequest(item._id)}
-                className={`mt-2 md:mt-0 px-4 py-2 rounded-lg font-medium ${
-                  item.handoffRequested
-                    ? "bg-gray-400 text-white cursor-not-allowed"
-                    : "bg-yellow-400 hover:bg-yellow-500 text-white"
-                }`}
-              >
-                {item.handoffRequested
-                  ? "Handoff Requested"
-                  : requesting[item._id]
-                  ? "Requesting..."
-                  : "Request Handoff"}
-              </button>
+              <div className="flex flex-col gap-2 mt-2 md:mt-0">
+                <button
+                  disabled={item.handoffRequested || requesting[item._id]}
+                  onClick={() => handleHandoffRequest(item._id)}
+                  className={`px-4 py-2 rounded-lg font-medium ${
+                    item.handoffRequested
+                      ? "bg-gray-400 text-white cursor-not-allowed"
+                      : "bg-yellow-400 hover:bg-yellow-500 text-white"
+                  }`}
+                >
+                  {item.handoffRequested
+                    ? "Handoff Requested"
+                    : requesting[item._id]
+                    ? "Requesting..."
+                    : "Request Handoff"}
+                </button>
+
+                <button
+                  disabled={deleting[item._id]}
+                  onClick={() => handleDeleteItem(item._id)}
+                  className={`px-4 py-2 rounded-lg font-medium bg-red-500 hover:bg-red-600 text-white ${
+                    deleting[item._id] ? "opacity-50 cursor-not-allowed" : ""
+                  }`}
+                >
+                  {deleting[item._id] ? "Deleting..." : "Delete Item"}
+                </button>
+              </div>
             </li>
           ))}
         </ul>
