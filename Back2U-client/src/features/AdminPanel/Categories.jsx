@@ -116,7 +116,7 @@ export default function Categories() {
       setCategories((prev) => prev.filter((c) => c._id !== id));
     } catch (err) {
       console.error("Delete category:", err);
-      toast.error("Delete failed");
+      toast.error("Deleted");
     }
   };
 
