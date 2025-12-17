@@ -152,4 +152,68 @@ router.post("/confirm/:id", verifyIdToken, adminOnly, async (req, res) => {
   }
 });
 
+
+/* 6) STAFF: reject handoff request (protected) */
+router.post("/reject/:id", verifyIdToken, adminOnly, async (req, res) => {
+  try {
+    const db = getDb(req);
+    const { id } = req.params;
+
+    const item = await db.collection("peerHeldItems").findOne({ _id: new ObjectId(id) });
+    if (!item) return res.status(404).json({ success: false, message: "Item not found." });
+
+    await db.collection("peerHeldItems").updateOne(
+      { _id: new ObjectId(id) },
+      { $set: { status: "Rejected", updatedAt: new Date() } }
+    );
+
+    res.json({ success: true, message: "Handoff request rejected." });
+  } catch (err) {
+    console.error("Reject request error:", err);
+    res.status(500).json({ success: false, message: "Error rejecting request." });
+  }
+});
+
+/* 7) STUDENT: delete their own peer-held item (protected) */
+router.delete("/item/:id", verifyIdToken, async (req, res) => {
+  try {
+    const db = getDb(req);
+    const { id } = req.params;
+    const userEmail = req.user?.email;
+
+    if (!userEmail) {
+      return res.status(401).json({ success: false, message: "Unauthenticated" });
+    }
+
+    // Find the item by ID
+    const item = await db.collection("peerHeldItems").findOne({ _id: new ObjectId(id) });
+    if (!item) return res.status(404).json({ success: false, message: "Item not found" });
+
+    // Check ownership
+    if (item.studentEmail !== userEmail) {
+      return res.status(403).json({ success: false, message: "Forbidden: cannot delete this item" });
+    }
+
+    // Delete the item
+    const deleteResult = await db.collection("peerHeldItems").deleteOne({ _id: new ObjectId(id) });
+    if (deleteResult.deletedCount === 0) {
+      return res.status(500).json({ success: false, message: "Failed to delete item" });
+    }
+
+    // Delete associated photo from server
+    if (item.photo) {
+      const filePath = path.join(__dirname, "..", item.photo.replace(/^\//, ""));
+      fs.unlink(filePath, (err) => {
+        if (err) console.error("Failed to delete item photo:", err);
+      });
+    }
+
+    res.json({ success: true, message: "Item deleted successfully", itemId: id });
+  } catch (err) {
+    console.error("Delete item error:", err);
+    res.status(500).json({ success: false, message: "Error deleting item" });
+  }
+});
+
+
 module.exports = router;
