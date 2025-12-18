@@ -27,3 +27,4 @@ Thumbs.db
 logs/
 *.log
 npm-debug.log*
+Back2U-server/firebase-service-account.json

@@ -43,10 +43,12 @@ export default function MyLostReportsPage() {
     if (!result.isConfirmed) return;
 
     try {
-
       await deleteLostReport(id, user?.email);
       toast.success('Report deleted successfully');
+
+      // ✅ Keep notifications in sync
       window.dispatchEvent(new Event("notifications:refresh"));
+
       loadReports();
     } catch (err) {
       console.error(err);
@@ -76,7 +78,9 @@ export default function MyLostReportsPage() {
 
       {reports.length === 0 ? (
         <div className="text-center py-12 rounded-lg">
-          <p className="text-gray-500 mb-4">You haven't filed any lost reports yet.</p>
+          <p className="text-gray-500 mb-4">
+            You haven't filed any lost reports yet.
+          </p>
           <Link
             to="/app/lost-reports/create"
             className="text-blue-600 hover:underline"
@@ -94,26 +98,27 @@ export default function MyLostReportsPage() {
               <div className="flex justify-between items-start mb-2">
                 <h3 className="font-semibold text-lg">{report.title}</h3>
                 <span
-                  className={`px-2 py-1 text-xs rounded ${report.status === 'Active'
+                  className={`px-2 py-1 text-xs rounded ${
+                    report.status === 'Active'
                       ? 'bg-green-100 text-green-800'
                       : report.status === 'Resolved'
-                        ? 'bg-gray-100 text-gray-800'
-                        : 'bg-yellow-100 text-yellow-800'
-                    }`}
+                      ? 'bg-gray-100 text-gray-800'
+                      : 'bg-yellow-100 text-yellow-800'
+                  }`}
                 >
                   {report.status}
                 </span>
               </div>
 
               <div className="text-sm text-gray-600 mb-2">
-                <div className="flex items-center gap-1">
+                <div>
                   <span className="font-medium">Category:</span> {report.category}
                 </div>
-                <div className="flex items-center gap-1">
+                <div>
                   <span className="font-medium">Lost at:</span> {report.locationLost}
                 </div>
                 {report.dateLost && (
-                  <div className="flex items-center gap-1">
+                  <div>
                     <span className="font-medium">Date:</span>{' '}
                     {format(new Date(report.dateLost), 'MMM dd, yyyy')}
                   </div>

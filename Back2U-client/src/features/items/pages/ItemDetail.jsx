@@ -1,6 +1,14 @@
 // ========================
 // ITEM DETAIL VIEW
 // ========================
+<<<<<<< HEAD
+import React, { useState, useEffect, useRef } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { format } from 'date-fns';
+import '../styles/ItemDetail.css'
+import ShareActions from '../../post_sharing/components/ShareActions';
+import MiniFlyer from '../../post_sharing/components/MiniFlyer';
+=======
 import React, { useState, useEffect, useRef, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
@@ -11,10 +19,21 @@ import CommentsSection from '../components/CommentsSection';
 import { AuthContext } from '../../../app/providers/createProvider';
 import { createReport } from '../../moderation/api/moderationApi';
 import { toast } from 'react-toastify';
+>>>>>>> origin/development
 
 const ItemDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+<<<<<<< HEAD
+  const [item, setItem] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const flyerRef = useRef(null);
+
+  useEffect(() => {
+    fetchItemDetail();
+=======
 
   const [item, setItem] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -80,11 +99,28 @@ const ItemDetail = () => {
   useEffect(() => {
     fetchItemDetail();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+>>>>>>> origin/development
   }, [id]);
 
   const fetchItemDetail = async () => {
     setLoading(true);
     setError(null);
+<<<<<<< HEAD
+
+    try {
+      // Call backend API
+      const response = await fetch(`http://localhost:5000/api/items/${id}`);
+      const data = await response.json();
+
+      if (data.success) {
+        setItem(data.data);
+      } else {
+        throw new Error(data.message || 'Failed to load item details');
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to load item details');
+      console.error('Error fetching item:', err);
+=======
     setItem(null);
 
     try {
@@ -115,6 +151,7 @@ const ItemDetail = () => {
     } catch (err) {
       console.error("Error fetching item:", err);
       setError(err?.message || "Failed to load item details");
+>>>>>>> origin/development
     } finally {
       setLoading(false);
     }
@@ -128,6 +165,14 @@ const ItemDetail = () => {
     );
   }
 
+<<<<<<< HEAD
+  if (error) {
+    return (
+      <div className="container">
+        <div className="error-message">
+          <p>⚠️ {error}</p>
+          <button className="btn btn-primary" onClick={() => navigate('/items')}>
+=======
   // friendly UI for deleted/not found (404)
   if (error) {
     return (
@@ -138,6 +183,7 @@ const ItemDetail = () => {
             className="btn bg-black text-white"
             onClick={() => navigate('/app/items')}
           >
+>>>>>>> origin/development
             Back to Items
           </button>
         </div>
@@ -145,13 +191,20 @@ const ItemDetail = () => {
     );
   }
 
+<<<<<<< HEAD
+=======
   // Extra safety (should rarely happen now)
+>>>>>>> origin/development
   if (!item) {
     return (
       <div className="container">
         <div className="error-message">
           <p>Item not found</p>
+<<<<<<< HEAD
+          <button className="btn btn-primary" onClick={() => navigate('/items')}>
+=======
           <button className="btn btn-primary" onClick={() => navigate("/app/items")}>
+>>>>>>> origin/development
             Back to Items
           </button>
         </div>
@@ -162,6 +215,18 @@ const ItemDetail = () => {
   return (
     <div className="item-detail">
       <div className="container">
+<<<<<<< HEAD
+        {/* Back Button */}
+        <div className='flex  mt-12 gap-6'>
+          <button className="btn btn-outline btn-md back-btn" onClick={() => navigate(-1)}>
+            ← Back
+          </button>
+          <div>
+            <ShareActions item={item} flyerRef={flyerRef} />
+            <MiniFlyer ref={flyerRef} item={item} />
+          </div>
+        </div>
+=======
         {/* Back + actions */}
         <div className="flex mt-12 gap-6 justify-between flex-wrap">
           <div className="flex gap-4 ">
@@ -185,16 +250,22 @@ const ItemDetail = () => {
           </button>
         </div>
 
+>>>>>>> origin/development
         <div className="detail-grid">
           {/* Image Section */}
           <div className="detail-image-section">
             <div className="detail-image-wrapper">
+<<<<<<< HEAD
+              <img src={item.photoUrl || item.photo} alt={item.title} className="detail-image" />
+              <span className={`badge badge-${item.status.toLowerCase()} detail-badge`}>
+=======
               <img
                 src={item.photoUrl || item.photo}
                 alt={item.title || "Item"}
                 className="detail-image"
               />
               <span className={`badge badge-${(item.status || "open").toLowerCase()} detail-badge`}>
+>>>>>>> origin/development
                 {item.status}
               </span>
             </div>
@@ -223,30 +294,47 @@ const ItemDetail = () => {
                   <span className="info-icon">📍</span>
                   <div>
                     <p className="info-label">Location Found</p>
+<<<<<<< HEAD
+                    <p className="info-value">{item.locationText || item.location}</p>
+                  </div>
+                </div>
+=======
                     <p className="info-value">
                       {item.locationText || item.location}
                     </p>
                   </div>
                 </div>
 
+>>>>>>> origin/development
                 <div className="info-item">
                   <span className="info-icon">📅</span>
                   <div>
                     <p className="info-label">Date Found</p>
                     <p className="info-value">
+<<<<<<< HEAD
+                      {format(new Date(item.dateFound), 'MMMM dd, yyyy')}
+                    </p>
+                  </div>
+                </div>
+=======
                       {item.dateFound ? format(new Date(item.dateFound), "MMMM dd, yyyy") : "-"}
                     </p>
                   </div>
                 </div>
 
+>>>>>>> origin/development
                 <div className="info-item">
                   <span className="info-icon">⏰</span>
                   <div>
                     <p className="info-label">Posted On</p>
                     <p className="info-value">
+<<<<<<< HEAD
+                      {format(new Date(item.createdAt), 'MMMM dd, yyyy - hh:mm a')}
+=======
                       {item.createdAt
                         ? format(new Date(item.createdAt), "MMMM dd, yyyy - hh:mm a")
                         : "-"}
+>>>>>>> origin/development
                     </p>
                   </div>
                 </div>
@@ -259,27 +347,45 @@ const ItemDetail = () => {
                 <h3 className="section-title">Posted By</h3>
                 <div className="user-info">
                   <img
+<<<<<<< HEAD
+                    src={item.postedBy.avatar || '/default-avatar.png'}
+                    alt={item.postedBy.name}
+=======
                     src={item.postedBy.avatar || "/default-avatar.png"}
                     alt={item.postedBy.name || "User"}
+>>>>>>> origin/development
                     className="user-avatar-large"
                   />
                   <div>
                     <p className="user-name-large">{item.postedBy.name}</p>
                     <p className="user-email">{item.postedBy.email}</p>
+<<<<<<< HEAD
+                    <span className={`badge badge-open`}>{item.postedBy.role}</span>
+=======
                     <span className="badge badge-open">{item.postedBy.role}</span>
+>>>>>>> origin/development
                   </div>
                 </div>
               </div>
             )}
 
             {/* Claimed By */}
+<<<<<<< HEAD
+            {item.status === 'Claimed' && item.claimedBy && (
+=======
             {item.status === "Claimed" && item.claimedBy && (
+>>>>>>> origin/development
               <div className="detail-section claimed-section">
                 <h3 className="section-title">Claimed By</h3>
                 <div className="user-info">
                   <img
+<<<<<<< HEAD
+                    src={item.claimedBy.avatar || '/default-avatar.png'}
+                    alt={item.claimedBy.name}
+=======
                     src={item.claimedBy.avatar || "/default-avatar.png"}
                     alt={item.claimedBy.name || "User"}
+>>>>>>> origin/development
                     className="user-avatar-large"
                   />
                   <div>
@@ -290,7 +396,11 @@ const ItemDetail = () => {
               </div>
             )}
 
+<<<<<<< HEAD
+            {item.status === 'Resolved' && (
+=======
             {item.status === "Resolved" && (
+>>>>>>> origin/development
               <div className="resolved-message">
                 <span className="resolved-icon">✅</span>
                 <p>This item has been successfully returned to its owner!</p>
@@ -298,6 +408,9 @@ const ItemDetail = () => {
             )}
           </div>
         </div>
+<<<<<<< HEAD
+      </div>
+=======
 
         {/* Comments */}
         <CommentsSection item={item} />
@@ -342,8 +455,13 @@ const ItemDetail = () => {
           </div>
         </div>
       )}
+>>>>>>> origin/development
     </div>
   );
 };
 
+<<<<<<< HEAD
 export default ItemDetail;
+=======
+export default ItemDetail;
+>>>>>>> origin/development

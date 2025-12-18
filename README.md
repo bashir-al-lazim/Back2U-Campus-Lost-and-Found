@@ -62,6 +62,7 @@ This feature introduces a dedicated share button that provides users with two qu
 
 ---
 
+
 ## 13 🗑️ Soft-Delete & Restore (Recycle Bin)
 
 This feature provides a safety mechanism to recover accidentally deleted records by moving them to a recycle bin instead of removing them immediately.

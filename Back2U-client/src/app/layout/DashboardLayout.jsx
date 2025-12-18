@@ -1,16 +1,13 @@
 import { useContext } from "react";
-import { FaHome, FaUser, FaCartPlus, FaList } from "react-icons/fa";
+import { FaHome, FaDatabase, FaUsers } from "react-icons/fa";
 import { NavLink, Outlet } from "react-router-dom";
-import { BiSolidCoupon } from "react-icons/bi";
 import { HiMiniClipboardDocumentCheck } from "react-icons/hi2";
 import { MdReport } from "react-icons/md";
-import { FaDatabase, FaUsers } from "react-icons/fa";
 import { AuthContext } from "../providers/createProvider";
 import { toast, ToastContainer } from "react-toastify";
 import { FaTrashAlt } from "react-icons/fa";
 
 const DashboardLayout = () => {
-
     const { user, role, loading, signOutUser } = useContext(AuthContext);
 
     if (loading) {
@@ -23,113 +20,86 @@ const DashboardLayout = () => {
 
     const handleSignOut = () => {
         signOutUser()
-            .then(() => toast.success('Successfully logged out'))
-            .catch(error => {
-                toast.error('Logout failed')
-                console.error(error.message)
-            })
-    }
+            .then(() => toast.success("Successfully logged out"))
+            .catch(() => toast.error("Logout failed"));
+    };
 
     return (
         <div className="flex flex-col md:flex-row">
             {/* sidebar */}
-            <div className="md:w-64 md:min-h-screen bg-base-300 border-r-[0.125rem] border-r-yellow-600">
+            <div className="md:w-64 md:min-h-screen bg-base-300 border-r border-yellow-600">
                 <ul className="menu p-4">
-
-                    {/* optional small header */}
+                    {/* user display */}
                     {user && (
                         <li className="mb-2 text-xs text-gray-500">
                             Signed in as <span className="font-semibold">{user.email}</span> ({role})
                         </li>
                     )}
 
-                    {/* admin menu */}
+                    {/* ADMIN MENU */}
                     {role === "admin" && (
                         <>
                             <li>
-                                <NavLink to="/dashboard/statistics">
-                                    <FaDatabase />
-                                    Statistics
+                                <NavLink to="/dashboard/admin/categories">
+                                    <FaDatabase /> Manage Categories
                                 </NavLink>
                             </li>
+
                             <li>
-                                <NavLink to="/dashboard/manage-users">
-                                    <FaUsers />
-                                    Manage Users
+                                <NavLink to="/dashboard/admin/logs">
+                                    <FaUsers /> System Logs
                                 </NavLink>
                             </li>
+
                             <li>
-                                <NavLink to="/dashboard/manage-coupons">
-                                    <BiSolidCoupon />
-                                    Manage Coupons
+                                <NavLink to="/dashboard/admin/reminder-policy">
+                                    <MdReport /> Reminder Policy
+                                </NavLink>
+                            </li>
+
+                            <li>
+                                <NavLink to="/dashboard/admin/unban-student">
+                                    <MdReport /> Unban Students
                                 </NavLink>
                             </li>
                         </>
                     )}
 
-                    {/* staff menu */}
+                    {/* STAFF MENU (Feature 15) */}
                     {role === "staff" && (
                         <>
                             <li>
-                                <NavLink to="/dashboard/moderation">
-                                    <MdReport />
-                                    Moderation Queue
+                                <NavLink to="/dashboard/items">
+                                    <HiMiniClipboardDocumentCheck /> Authority Intake & Catalog
                                 </NavLink>
                             </li>
 
-                            <li>
-                                <NavLink to="/dashboard/items">
-                                    <HiMiniClipboardDocumentCheck />
-                                    Authority Intake & Catalog
-                                </NavLink>
-                            </li>
                             <li>
                                 <NavLink to="/dashboard/lost-reports">
-                                    <MdReport />
-                                    Lost Reports (Matching)
-                                </NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/dashboard/claims">
-                                    <HiMiniClipboardDocumentCheck />
-                                    Claim Management
-                                </NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/dashboard/handover">
-                                    <HiMiniClipboardDocumentCheck />
-                                    Handover (OTP)
+                                    <MdReport /> Lost Reports
                                 </NavLink>
                             </li>
 
+                            {/* FEATURE 15: Peer-Held Items */}
+                            <li>
+                                <NavLink to="/dashboard/feature15/requests">
+                                    <MdReport /> Peer-Held Requests
+                                </NavLink>
+                            </li>
                         </>
                     )}
 
-                    {/* student menu */}
+                    {/* STUDENT MENU (Feature 15) */}
                     {role === "student" && (
                         <>
                             <li>
-                                <NavLink to="/dashboard/my-profile">
-                                    <FaUser />
-                                    My Profile
+                                <NavLink to="/app/feature15/create">
+                                    <HiMiniClipboardDocumentCheck /> Post Peer-Held Item
                                 </NavLink>
                             </li>
                             <li>
-                                <NavLink to="/dashboard/add-products">
-                                    <FaCartPlus />
-                                    Add Product
-                                </NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/dashboard/my-products">
-                                    <FaList />
-                                    My Products
-                                </NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/dashboard/my-claims">
-                                    <FaList />
-                                    My Claims
+                                <NavLink to="/app/feature15/mine">
+                                    <MdReport /> My Peer-Held Items
                                 </NavLink>
                             </li>
                         </>
@@ -147,16 +117,16 @@ const DashboardLayout = () => {
 
                     {/* shared nav links */}
                     <div className="divider divider-warning"></div>
+
+                    {/* common */}
                     <li>
                         <NavLink to="/">
-                            <FaHome />
-                            Home
+                            <FaHome /> Home
                         </NavLink>
                     </li>
+
                     <li>
-                        <NavLink onClick={handleSignOut}>
-                            Logout
-                        </NavLink>
+                        <NavLink onClick={handleSignOut}>Logout</NavLink>
                     </li>
                 </ul>
             </div>
@@ -164,17 +134,11 @@ const DashboardLayout = () => {
             {/* main content */}
             <div className="flex flex-1 py-5 md:py-10 px-4 items-start">
                 <Outlet />
-                <ToastContainer
-                    position="bottom-right"
-                    autoClose={5000}
-                    pauseOnFocusLoss
-                    draggable
-                    pauseOnHover
-                    theme="light"
-                />
+                <ToastContainer position="bottom-right" autoClose={5000} theme="light" />
             </div>
-        </div >
+        </div>
     );
 };
+
 
 export default DashboardLayout;

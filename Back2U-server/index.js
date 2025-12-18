@@ -1,3 +1,4 @@
+const adminRoutes = require("./routes/adminroutes");
 const express = require("express");
 const cors = require("cors");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
@@ -10,6 +11,8 @@ const port = process.env.PORT || 5000;
 // middleware
 app.use(cors());
 app.use(express.json());
+
+app.use("/uploads", express.static("uploads"));
 
 // MongoDB connection URI
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.SECRET_KEY}@back2u.slzfoxx.mongodb.net/?appName=Back2U`;
@@ -24,6 +27,13 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
+    app.locals.db = db;
+    app.use("/admin", adminRoutes);
+
+// ---------------- FEATURE 15 ROUTES ----------------
+    const feature15Routes = require("./routes/feature15Routes");
+    app.use("/feature15", feature15Routes);
+    
     const db = client.db("back2uDB");
     const itemsCollection = db.collection("items");
     const lostReportsCollection = db.collection("lostreports");
@@ -830,12 +840,10 @@ async function run() {
         updatedAt: new Date(),
         __v: 0,
       };
-
       const result = await lostReportsCollection.insertOne(newReport);
       const created = await lostReportsCollection.findOne({ _id: result.insertedId });
       res.status(201).send(created);
     });
-
 
     app.put("/lostreports/:id", async (req, res) => {
       const { id } = req.params;
@@ -1249,6 +1257,71 @@ async function run() {
           error: error.message,
         });
       }
+    })
+
+
+    // -----------------------
+    // FEATURE 12 (Example: Campus Lost and Found Chat Feature)
+    // -----------------------
+    const chatsCollection = db.collection("chats");
+
+    app.post("/feature12/chat", async (req, res) => {
+      const { userEmail, message } = req.body;
+      if (!userEmail || !message) return res.status(400).send("Missing fields");
+
+      const newMsg = {
+        userEmail,
+        message,
+        createdAt: new Date()
+      };
+      const result = await chatsCollection.insertOne(newMsg);
+      const created = await chatsCollection.findOne({ _id: result.insertedId });
+      res.status(201).json(created);
+    });
+
+    app.get("/feature12/chat/:email", async (req, res) => {
+      const { email } = req.params;
+      const msgs = await chatsCollection.find({ userEmail: email }).sort({ createdAt: 1 }).toArray();
+      res.status(200).json(msgs);
+    });
+
+
+    // -----------------------
+    // FEATURE 15 (Example: Notification / Alerts Feature)
+    // -----------------------
+
+    app.post("/feature15/notify", async (req, res) => {
+      const { userEmail, title, message } = req.body;
+      if (!userEmail || !title || !message) return res.status(400).send("Missing fields");
+
+      const newNotif = {
+        userEmail,
+        title,
+        message,
+        read: false,
+        createdAt: new Date()
+      };
+
+      const result = await notificationsCollection.insertOne(newNotif);
+      const created = await notificationsCollection.findOne({ _id: result.insertedId });
+      res.status(201).json(created);
+    });
+
+    app.get("/feature15/notifications/:email", async (req, res) => {
+      const { email } = req.params;
+      const notifs = await notificationsCollection.find({ userEmail: email }).sort({ createdAt: -1 }).toArray();
+      res.status(200).json(notifs);
+    });
+
+    app.put("/feature15/notifications/:id/read", async (req, res) => {
+      const { id } = req.params;
+      const result = await notificationsCollection.findOneAndUpdate(
+        { _id: new ObjectId(id) },
+        { $set: { read: true, updatedAt: new Date() } },
+        { returnDocument: "after" }
+      );
+      if (!result.value) return res.status(404).send("Notification not found");
+      res.status(200).json(result.value);
     });
 
     // ========================
