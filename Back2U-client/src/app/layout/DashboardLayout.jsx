@@ -5,6 +5,7 @@ import { HiMiniClipboardDocumentCheck } from "react-icons/hi2";
 import { MdReport } from "react-icons/md";
 import { AuthContext } from "../providers/createProvider";
 import { toast, ToastContainer } from "react-toastify";
+import { FaTrashAlt } from "react-icons/fa";
 
 const DashboardLayout = () => {
     const { user, role, loading, signOutUser } = useContext(AuthContext);
@@ -104,6 +105,17 @@ const DashboardLayout = () => {
                         </>
                     )}
 
+                    {["student", "staff", "admin"].includes(role) && (
+                        <li>
+                            <NavLink to="/dashboard/recycle-bin">
+                                <FaTrashAlt />
+                                Recycle Bin
+                            </NavLink>
+
+                        </li>
+                    )}
+
+                    {/* shared nav links */}
                     <div className="divider divider-warning"></div>
 
                     {/* common */}
