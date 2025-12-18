@@ -43,9 +43,12 @@ export default function MyLostReportsPage() {
     if (!result.isConfirmed) return;
 
     try {
-      
-      await deleteLostReport(id, user?.email); 
+      await deleteLostReport(id, user?.email);
       toast.success('Report deleted successfully');
+
+      // ✅ keep notifications in sync
+      window.dispatchEvent(new Event("notifications:refresh"));
+
       loadReports();
     } catch (err) {
       console.error(err);
@@ -75,7 +78,9 @@ export default function MyLostReportsPage() {
 
       {reports.length === 0 ? (
         <div className="text-center py-12 rounded-lg">
-          <p className="text-gray-500 mb-4">You haven't filed any lost reports yet.</p>
+          <p className="text-gray-500 mb-4">
+            You haven't filed any lost reports yet.
+          </p>
           <Link
             to="/app/lost-reports/create"
             className="text-blue-600 hover:underline"
@@ -106,14 +111,14 @@ export default function MyLostReportsPage() {
               </div>
 
               <div className="text-sm text-gray-600 mb-2">
-                <div className="flex items-center gap-1">
+                <div>
                   <span className="font-medium">Category:</span> {report.category}
                 </div>
-                <div className="flex items-center gap-1">
+                <div>
                   <span className="font-medium">Lost at:</span> {report.locationLost}
                 </div>
                 {report.dateLost && (
-                  <div className="flex items-center gap-1">
+                  <div>
                     <span className="font-medium">Date:</span>{' '}
                     {format(new Date(report.dateLost), 'MMM dd, yyyy')}
                   </div>
