@@ -21,7 +21,7 @@ import MyLostReportsPage from "../../features/lost_reports/pages/MyLostReportsPa
 import LostReportCreatePage from "../../features/lost_reports/pages/LostReportCreatePage";
 import LostReportUpdatePage from "../../features/lost_reports/pages/LostReportUpdatePage";
 
-// CLAIMS / MODERATION / HANDOVER (FRIENDS)
+// FRIENDS — CLAIMS / MODERATION / HANDOVER
 import RecycleBinPage from "../../features/recycle_bin/pages/RecycleBinPage";
 import ClaimsListPage from "../../features/claims/pages/ClaimsListPage";
 import ClaimDetailsPage from "../../features/claims/pages/ClaimDetailsPage";
@@ -59,15 +59,19 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <Greet /> },
 
-      // CLAIM MANAGEMENT (FRIENDS)
-      { path: "claims", element: <ClaimsListPage /> },
-      { path: "claims/:id", element: <ClaimDetailsPage /> },
-
       // AUTHORITY
       { path: "items", element: <AuthorityCatalogPage /> },
       { path: "items/create", element: <AuthorityCreatePage /> },
       { path: "items/update/:id", element: <AuthorityUpdatePage /> },
       { path: "lost-reports", element: <AuthorityLostReportsPage /> },
+
+      // FRIENDS — CLAIMS & MODERATION
+      { path: "claims", element: <ClaimsListPage /> },
+      { path: "claims/:id", element: <ClaimDetailsPage /> },
+      { path: "handover", element: <HandoverPage /> },
+      { path: "my-claims", element: <MyClaimsPage /> },
+      { path: "moderation", element: <ModerationQueuePage /> },
+      { path: "recycle-bin", element: <RecycleBinPage /> },
 
       // FEATURE 15 — STAFF
       {
@@ -130,9 +134,8 @@ const router = createBrowserRouter([
       { path: "lost-reports/create", element: <LostReportCreatePage /> },
       { path: "lost-reports/update/:id", element: <LostReportUpdatePage /> },
 
-      // CLAIMS (FRIENDS)
+      // FRIENDS — CLAIMS
       { path: "items/:id/claim", element: <StudentClaimPage /> },
-      { path: "my-claims", element: <MyClaimsPage /> },
 
       // FEATURE 15 — STUDENT
       { path: "feature15/create", element: <Feature15Create /> },

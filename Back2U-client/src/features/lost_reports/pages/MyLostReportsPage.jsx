@@ -46,7 +46,7 @@ export default function MyLostReportsPage() {
       await deleteLostReport(id, user?.email);
       toast.success('Report deleted successfully');
 
-      // ✅ keep notifications in sync
+      // ✅ Keep notifications in sync
       window.dispatchEvent(new Event("notifications:refresh"));
 
       loadReports();

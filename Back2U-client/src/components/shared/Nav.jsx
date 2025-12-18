@@ -8,7 +8,7 @@ const Nav = () => {
   const { user, role, signOutUser } = useContext(AuthContext);
   const [scroll, setScroll] = useState(false);
 
-  // ✅ Correct scroll handling
+  // ✅ Correct scroll handling (memory-safe)
   useEffect(() => {
     const handleScroll = () => setScroll(window.scrollY > 112);
     window.addEventListener("scroll", handleScroll);
@@ -18,16 +18,13 @@ const Nav = () => {
   const handleSignOut = () => {
     signOutUser()
       .then(() => toast.success("Successfully logged out"))
-      .catch((error) => {
-        toast.error("Logout failed");
-        console.error(error.message);
-      });
+      .catch(() => toast.error("Logout failed"));
   };
 
   const pagesClass = ({ isActive }) =>
     isActive
-      ? "text-black border-yellow-400 py-[0.575rem] px-5 border-[0.1rem] transition duration-500 rounded-lg bg-base-100"
-      : "text-black py-[0.575rem] px-5 border-[0.1rem] border-transparent hover:text-[#898888]";
+      ? "text-black border-yellow-400 py-[0.575rem] px-5 border rounded-lg bg-base-100"
+      : "text-black py-[0.575rem] px-5 border border-transparent hover:text-[#898888]";
 
   const adminLinks = [
     { name: "Categories", to: "/dashboard/admin/categories" },
@@ -42,9 +39,10 @@ const Nav = () => {
         scroll ? "fixed top-0" : "absolute"
       } transition-all duration-500 bg-[#8b8b8b58] z-50 shadow-lg w-full max-w-[89.9rem] rounded-b-2xl`}
     >
-      <div className="sm:py-3 py-2 w-full pl-4 pr-7 navbar">
-        {/* Logo */}
-        <div className="flex items-center navbar-start gap-2">
+      <div className="navbar px-4 py-2">
+
+        {/* LOGO */}
+        <div className="navbar-start flex items-center gap-2">
           <img
             src="https://i.ibb.co/NrQ9n1Y/Black-logo-removebg-preview.png"
             alt="logo"
@@ -53,35 +51,31 @@ const Nav = () => {
           <h2 className="text-2xl font-bold">Back2U</h2>
         </div>
 
-        {/* Desktop Menu */}
+        {/* DESKTOP MENU */}
         <div className="hidden lg:flex navbar-center">
-          <ul className="font-medium gap-4 flex items-center">
+          <ul className="flex gap-4 font-medium items-center">
             <NavLink to="/" className={pagesClass}>Home</NavLink>
             <NavLink to="/app/items" className={pagesClass}>Items</NavLink>
             <NavLink to="/app/lost-reports" className={pagesClass}>My Lost Reports</NavLink>
 
-            {/* Held & Request – STUDENT ONLY */}
+            {/* FEATURE 15 – STUDENT */}
             {role === "student" && (
               <div className="dropdown">
-                <button tabIndex={0} className="px-3 py-1 font-medium hover:text-yellow-400">
+                <button tabIndex={0} className="px-3 py-1 font-medium">
                   Held & Request
                 </button>
-                <ul className="dropdown-content menu p-2 mt-2 shadow-md bg-base-100 rounded-lg">
-                  <li>
-                    <NavLink to="/app/feature15/create">Create Item</NavLink>
-                  </li>
-                  <li>
-                    <NavLink to="/app/feature15/mine">My Items</NavLink>
-                  </li>
+                <ul className="dropdown-content menu p-2 bg-base-100 rounded-lg shadow">
+                  <li><NavLink to="/app/feature15/create">Create Item</NavLink></li>
+                  <li><NavLink to="/app/feature15/mine">My Items</NavLink></li>
                 </ul>
               </div>
             )}
 
-            {/* Admin Dropdown */}
+            {/* ADMIN */}
             {role === "admin" && (
               <div className="dropdown">
                 <button tabIndex={0} className={pagesClass}>Admin</button>
-                <ul className="dropdown-content menu p-2 mt-2 shadow-md bg-base-100 rounded-lg">
+                <ul className="dropdown-content menu p-2 bg-base-100 rounded-lg shadow">
                   {adminLinks.map(link => (
                     <li key={link.to}>
                       <NavLink to={link.to}>{link.name}</NavLink>
@@ -93,10 +87,10 @@ const Nav = () => {
           </ul>
         </div>
 
-        {/* Mobile Menu */}
+        {/* MOBILE MENU */}
         <div className="dropdown lg:hidden navbar-end">
           <div tabIndex={0} role="button">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-9 w-9 fill-yellow-400" viewBox="0 0 24 24">
+            <svg className="h-9 w-9 fill-yellow-400" viewBox="0 0 24 24">
               <path d="M4 6h16M4 12h8m-8 6h16" />
             </svg>
           </div>
@@ -131,8 +125,8 @@ const Nav = () => {
           </ul>
         </div>
 
-        {/* User / Login */}
-        <div className="flex gap-4 items-center navbar-end">
+        {/* USER */}
+        <div className="navbar-end flex gap-4 items-center">
           {user && <NotificationBell />}
           {user ? (
             <div className="avatar dropdown">
@@ -148,6 +142,7 @@ const Nav = () => {
             <Link to="/login" className="btn btn-warning">Login</Link>
           )}
         </div>
+
       </div>
     </div>
   );
