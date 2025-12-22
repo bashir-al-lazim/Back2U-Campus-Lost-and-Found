@@ -2599,8 +2599,6 @@ app.use("/feature15", feature15Routes);
         const adminExportRoutes = require("./routes/adminExportRoutes");
         app.use("/admin", adminExportRoutes);
 
-        const exportRoutes = require("./routes/exportRoutes");
-        app.use("/export", exportRoutes);
 
 
 
