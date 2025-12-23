@@ -17,24 +17,28 @@ export default function Feature15MyItems() {
 
   // Fetch student's peer-held items
   useEffect(() => {
-    const fetchMyItems = async () => {
-      if (!user?.email) return;
+  const fetchMyItems = async () => {
+    if (!user?.email) return;
 
-      try {
-        const res = await axios.get(`${API}/feature15/item`, {
-          params: { studentEmail: user.email },
-        });
-        setItems(res.data.data || []);
-      } catch (err) {
-        console.error("Failed to fetch my items:", err);
-        toast.error("Failed to fetch items");
-      } finally {
-        setLoading(false);
-      }
-    };
+    try {
+      const token = await auth.currentUser.getIdToken(true); // Get Firebase ID token
+      const res = await axios.get(`${API}/feature15/item`, {
+        headers: {
+          Authorization: `Bearer ${token}`, // Pass token to backend
+        },
+      });
+      setItems(res.data.data || []);
+    } catch (err) {
+      console.error("Failed to fetch my items:", err);
+      toast.error("Failed to fetch items");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    fetchMyItems();
-  }, [user]);
+  fetchMyItems();
+}, [user]);
+
 
   // Request handoff
   const handleHandoffRequest = async (itemId) => {
@@ -110,7 +114,7 @@ export default function Feature15MyItems() {
             >
               {item.photo && (
                 <img
-                  src={`http://localhost:5000${item.photo}`}
+                  src={item.photo}
                   alt={item.title}
                   className="w-32 h-32 object-cover rounded-lg border"
                 />
