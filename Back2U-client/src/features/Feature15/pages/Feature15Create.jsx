@@ -12,6 +12,15 @@ const Feature15Create = () => {
   const [location, setLocation] = useState(""); // new
   const [dateFound, setDateFound] = useState(""); // new
   const [loading, setLoading] = useState(false);
+  
+  
+  const fileToBase64 = (file) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = (error) => reject(error);
+  });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -29,21 +38,35 @@ const Feature15Create = () => {
     setLoading(true);
 
     try {
-      const formData = new FormData();
-      formData.append("title", title);
-      formData.append("description", description);
-      formData.append("category", category);
-      formData.append("studentID", studentID);
-      formData.append("studentEmail", studentEmail);
-      formData.append("photo", photo);
-      formData.append("location", location); // new
-      formData.append("dateFound", dateFound); // new
+      const photoBase64 = await fileToBase64(photo);
 
-      const res = await axios.post(
-        "http://localhost:5000/feature15/item",
-        formData,
-        { headers: { "Content-Type": "multipart/form-data" } }
-      );
+      //const formData = new FormData();
+      //formData.append("title", title);
+      //formData.append("description", description);
+      //formData.append("category", category);
+      //formData.append("studentID", studentID);
+      //formData.append("studentEmail", studentEmail);
+      //formData.append("photo", photo);
+      //formData.append("location", location); // new
+      //formData.append("dateFound", dateFound); // new
+
+      //const res = await axios.post(
+        //"http://localhost:5000/feature15/item",
+        //formData,
+        //{ headers: { "Content-Type": "multipart/form-data" } }
+      //);
+
+ const res = await axios.post("http://localhost:5000/feature15/item", {
+  title,
+  description,
+  category,
+  studentID,
+  studentEmail,
+  location,
+  dateFound,
+  photoBase64,
+});
+
 
       if (res.data.success) {
         toast.success("Item posted successfully!");
