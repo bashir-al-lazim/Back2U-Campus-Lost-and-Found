@@ -1,10 +1,9 @@
 const express = require("express");
 const router = express.Router();
 const { ObjectId } = require("mongodb");
-
 const checkAdmin = require("../middleware/checkAdmin");
 
-// PROTECT ALL ADMIN ROUTES
+// Protect all admin routes
 router.use(checkAdmin);
 
 // Helper to get DB from app locals
@@ -15,7 +14,6 @@ function getDb(req) {
 /* --------------------------
    CATEGORY MANAGEMENT
 --------------------------- */
-
 // GET all categories
 router.get("/categories", async (req, res) => {
   try {
@@ -28,7 +26,7 @@ router.get("/categories", async (req, res) => {
   }
 });
 
-// CREATE a category
+// CREATE category
 router.post("/categories", async (req, res) => {
   try {
     const db = getDb(req);
@@ -41,7 +39,7 @@ router.post("/categories", async (req, res) => {
       action: "CREATE_CATEGORY",
       details: name,
       admin: req.body.adminEmail || "ADMIN_USER",
-      timestamp: new Date()
+      timestamp: new Date(),
     });
 
     res.json({ success: true, data: { _id: result.insertedId, name } });
@@ -59,7 +57,7 @@ router.put("/categories/:id", async (req, res) => {
     const { name } = req.body;
     if (!name) return res.status(400).json({ success: false, message: "New name is required" });
 
-    const result = await db.collection("categories").updateOne(
+    await db.collection("categories").updateOne(
       { _id: new ObjectId(id) },
       { $set: { name } }
     );
@@ -68,7 +66,7 @@ router.put("/categories/:id", async (req, res) => {
       action: "RENAME_CATEGORY",
       details: name,
       admin: req.body.adminEmail || "ADMIN_USER",
-      timestamp: new Date()
+      timestamp: new Date(),
     });
 
     res.json({ success: true });
@@ -89,8 +87,8 @@ router.delete("/categories/:id", async (req, res) => {
     await db.collection("auditLogs").insertOne({
       action: "DELETE_CATEGORY",
       details: id,
-      admin: req.body.adminEmail || "ADMIN_USER",
-      timestamp: new Date()
+      admin: req.user?.email || "ADMIN_USER",
+      timestamp: new Date(),
     });
 
     res.json({ success: true });
@@ -103,8 +101,6 @@ router.delete("/categories/:id", async (req, res) => {
 /* --------------------------
    AUDIT LOGS
 --------------------------- */
-
-// GET latest 50 logs
 router.get("/audit-logs", async (req, res) => {
   try {
     const db = getDb(req);
@@ -117,21 +113,16 @@ router.get("/audit-logs", async (req, res) => {
     console.error("GET /audit-logs error:", err);
     res.status(500).json({ success: false, error: err.message });
   }
-
-
 });
 
 /* --------------------------
    REMINDER POLICY
 --------------------------- */
-// GET reminder policy
 router.get("/reminder-policy", async (req, res) => {
   try {
     const db = getDb(req);
     let policy = await db.collection("settings").findOne({ _id: "reminder-policy" });
-
     if (!policy) policy = { _id: "reminder-policy", days: 3 };
-
     res.json({ success: true, value: policy.days });
   } catch (err) {
     console.error("GET /reminder-policy error:", err);
@@ -139,13 +130,11 @@ router.get("/reminder-policy", async (req, res) => {
   }
 });
 
-// UPDATE reminder policy
 router.post("/reminder-policy", async (req, res) => {
   try {
     const db = getDb(req);
     const { days, adminEmail } = req.body;
-
-    if (days === undefined || days === null) 
+    if (days === undefined || days === null)
       return res.status(400).json({ success: false, message: "Days is required" });
 
     await db.collection("settings").updateOne(
@@ -158,7 +147,7 @@ router.post("/reminder-policy", async (req, res) => {
       action: "UPDATE_REMINDER_POLICY",
       details: `${days} days`,
       admin: adminEmail || "ADMIN_USER",
-      timestamp: new Date()
+      timestamp: new Date(),
     });
 
     res.json({ success: true, value: days });
@@ -166,61 +155,121 @@ router.post("/reminder-policy", async (req, res) => {
     console.error("POST /reminder-policy error:", err);
     res.status(500).json({ success: false, error: err.message });
   }
-
 });
 
 /* --------------------------
-   STUDENT MANAGEMENT (Unban)
+   STUDENT MANAGEMENT
 --------------------------- */
 
-// GET student by studentId
-router.get("/student/:studentId", async (req, res) => {
+// Search student by ID, email, or name (partial)
+router.get("/student/search", async (req, res) => {
   try {
     const db = getDb(req);
-    const { studentId } = req.params;
+    const { query } = req.query;
+    if (!query) return res.status(400).json({ message: "Query is required" });
 
-    const student = await db.collection("students").findOne({ studentId });
+    const student = await db.collection("students").findOne({
+      $or: [
+        { studentId: query },
+        { email: query.toLowerCase() },
+        { name: { $regex: query, $options: "i" } }
+      ]
+    });
 
-    if (!student) {
-      return res.status(404).json({ message: "Student not found" });
-    }
+    if (!student) return res.status(404).json({ message: "Student not found" });
 
     res.json(student);
-  } catch (error) {
-    console.error("Get student error:", error);
+  } catch (err) {
+    console.error("Search student error:", err);
     res.status(500).json({ message: "Server error" });
   }
 });
 
-// UNBAN student
-router.put("/student/unban/:studentId", async (req, res) => {
+// Ban / Warning student by _id
+router.put("/student/ban/:id", async (req, res) => {
   try {
     const db = getDb(req);
-    const { studentId } = req.params;
-    const adminEmail = req.body.adminEmail || "ADMIN_USER";
+    const { id } = req.params;
+    const { permanent, until, warning, adminEmail } = req.body;
 
-    const result = await db.collection("students").updateOne(
-      { studentId },
-      { $set: { banned: false } }
-    );
+    const student = await db.collection("students").findOne({ _id: new ObjectId(id) });
+    if (!student) return res.status(404).json({ message: "Student not found" });
 
-    if (result.matchedCount === 0) {
-      return res.status(404).json({ message: "Student not found" });
+    // Warning
+    if (warning) {
+      const warnings = (student.warningsCount || 0) + 1;
+      await db.collection("students").updateOne(
+        { _id: new ObjectId(id) },
+        { $set: { warningsCount: warnings } }
+      );
+
+      await db.collection("auditLogs").insertOne({
+        action: "SEND_WARNING",
+        details: `Student ${student.name || student.email} received warning #${warnings}`,
+        admin: adminEmail || "ADMIN_USER",
+        timestamp: new Date(),
+      });
+
+      return res.json({ success: true, message: `Warning sent (#${warnings})` });
     }
 
+    // Ban
+    let bannedUntil = null;
+    if (permanent) bannedUntil = "PERMANENT";
+    else if (until) {
+      const date = new Date(until);
+      if (isNaN(date.getTime())) return res.status(400).json({ message: "Invalid date" });
+      bannedUntil = date;
+    }
+
+    await db.collection("students").updateOne(
+      { _id: new ObjectId(id) },
+      { $set: { banned: true, bannedUntil } }
+    );
+
     await db.collection("auditLogs").insertOne({
-      action: "UNBAN_STUDENT",
-      details: `Student ID ${studentId} unbanned`,
-      admin: adminEmail,
-      timestamp: new Date()
+      action: "BAN_STUDENT",
+      details: `Student ${student.name || student.email} banned ${permanent ? "permanently" : `until ${bannedUntil}`}`,
+      admin: adminEmail || "ADMIN_USER",
+      timestamp: new Date(),
     });
 
-    res.json({ success: true, message: "Student unbanned successfully" });
+    res.json({
+      success: true,
+      message: `Student banned ${permanent ? "permanently" : `until ${bannedUntil}`}`,
+    });
   } catch (err) {
-    console.error("PUT /student/unban/:studentId error:", err);
+    console.error("PUT /student/ban/:id error:", err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
+// Unban student by _id
+router.put("/student/unban/:id", async (req, res) => {
+  try {
+    const db = getDb(req);
+    const { id } = req.params;
+    const adminEmail = req.body.adminEmail || "ADMIN_USER";
+
+    const result = await db.collection("students").updateOne(
+      { _id: new ObjectId(id) },
+      { $set: { banned: false, bannedUntil: null } }
+    );
+
+    if (result.matchedCount === 0) return res.status(404).json({ message: "Student not found" });
+
+    await db.collection("auditLogs").insertOne({
+      action: "UNBAN_STUDENT",
+      details: `Student ${id} unbanned`,
+      admin: adminEmail,
+      timestamp: new Date(),
+    });
+
+    res.json({ success: true, message: "Student unbanned successfully" });
+  } catch (err) {
+    console.error("PUT /student/unban/:id error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 module.exports = router;
