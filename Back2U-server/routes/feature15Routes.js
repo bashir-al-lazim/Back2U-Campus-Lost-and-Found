@@ -1,44 +1,58 @@
 // server/routes/feature15Routes.js
 const express = require("express");
 const { ObjectId } = require("mongodb");
-const multer = require("multer");
-const path = require("path");
-const fs = require("fs");
+
+
+
+
+//to save the uploads file on local machine
+//const multer = require("multer");
+//const path = require("path");
+//const fs = require("fs");
 
 const verifyIdToken = require("../middleware/verifyFirebase");
 const adminOnly = require("../middleware/adminOnly");
 
 const router = express.Router(); // <<< MUST EXIST
 
+
 function getDb(req) {
   return req.app.locals.db;
 }
 
 // Ensure upload directory exists
-const UPLOAD_DIR = path.join(__dirname, "../uploads/feature15");
-if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, UPLOAD_DIR),
-  filename: (req, file, cb) => cb(null, Date.now() + path.extname(file.originalname)),
-});
+//const UPLOAD_DIR = path.join(__dirname, "../uploads/feature15");
+//if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
-const upload = multer({
-  storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
-});
+//const storage = multer.diskStorage({
+  //destination: (req, file, cb) => cb(null, UPLOAD_DIR),
+  //filename: (req, file, cb) => cb(null, Date.now() + path.extname(file.originalname)),
+//});
+
+//const upload = multer({
+  //storage,
+  //limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+//});
+
+
 
 /* 1) CREATE PEER-HELD ITEM (with photo) */
-router.post("/item", upload.single("photo"), async (req, res) => {
+//router.post("/item", upload.single("photo"), async (req, res) => {
+
+  router.post("/item", async (req, res) => {
   try {
     const db = getDb(req);
     const { title, description, category, studentID, studentEmail, location, dateFound } = req.body;
+    const { photoBase64 } = req.body;
 
-    if (!title || !studentID || !studentEmail || !location || !dateFound) {
+
+    //if (!title || !studentID || !studentEmail || !location || !dateFound) {
+    if (!title || !studentID || !studentEmail || !location || !dateFound || !photoBase64) {
       return res.status(400).json({ success: false, message: "Missing required fields." });
     }
 
-    const photoPath = req.file ? `/uploads/feature15/${req.file.filename}` : null;
+    //const photoPath = req.file ? `/uploads/feature15/${req.file.filename}` : null;
 
     const newItem = {
       title,
@@ -46,10 +60,12 @@ router.post("/item", upload.single("photo"), async (req, res) => {
       category: category || "General",
       location,
       dateFound: new Date(dateFound),
-      postedBy: new ObjectId(), // NEW ObjectId
+      postedBy: req.user?.uid || new ObjectId(),
+ // NEW ObjectId
       studentEmail,
       status: "Held by Student",
-      photo: photoPath,
+      //photo: photoPath,
+      photo: photoBase64,
       handoffRequested: false,
       converted: false,
       createdAt: new Date(),
@@ -66,13 +82,23 @@ router.post("/item", upload.single("photo"), async (req, res) => {
   }
 });
 
-/* 2) GET PEER-HELD ITEMS (filter by student) */
-router.get("/item", async (req, res) => {
+/* 2) GET PEER-HELD ITEMS (only for logged-in student) */
+router.get("/item", verifyIdToken, async (req, res) => {
   try {
     const db = getDb(req);
-    const { studentID } = req.query;
-    const query = studentID ? { studentEmail: studentID } : {};
-    const items = await db.collection("peerHeldItems").find(query).sort({ createdAt: -1 }).toArray();
+    const userEmail = (req.user?.email || "").trim().toLowerCase();
+
+    if (!userEmail) {
+      return res.status(401).json({ success: false, message: "Unauthenticated" });
+    }
+
+    // Fetch only items posted by this user
+    const items = await db
+      .collection("peerHeldItems")
+      .find({ studentEmail: userEmail })
+      .sort({ createdAt: -1 })
+      .toArray();
+
     res.json({ success: true, data: items });
   } catch (err) {
     console.error("Get peer-held items error:", err);
@@ -107,7 +133,11 @@ router.get("/requests", verifyIdToken, adminOnly, async (req, res) => {
     const db = getDb(req);
     const requests = await db
       .collection("peerHeldItems")
-      .find({ handoffRequested: true, converted: false })
+      .find({
+        handoffRequested: true,
+        converted: false,
+        status: { $ne: "Rejected" }  // exclude rejected items
+      })
       .sort({ createdAt: -1 })
       .toArray();
 
@@ -191,27 +221,33 @@ router.delete("/item/:id", verifyIdToken, async (req, res) => {
   try {
     const db = getDb(req);
     const { id } = req.params;
-    const userEmail = req.user?.email;
+    const userEmail = (req.user?.email || "").trim().toLowerCase();
 
-    if (!userEmail) return res.status(401).json({ success: false, message: "Unauthenticated" });
+    if (!userEmail) {
+      return res.status(401).json({ success: false, message: "Unauthenticated" });
+    }
 
     const item = await db.collection("peerHeldItems").findOne({ _id: new ObjectId(id) });
-    if (!item) return res.status(404).json({ success: false, message: "Item not found" });
+    if (!item) {
+      return res.status(404).json({ success: false, message: "Item not found" });
+    }
 
-    if (item.studentEmail !== userEmail) {
-      return res.status(403).json({ success: false, message: "Forbidden: cannot delete this item" });
+    const itemEmail = (item.studentEmail || "").trim().toLowerCase();
+
+    // Allow delete if:
+    // 1) student owns the item
+    // 2) legacy item with no studentEmail
+    if (itemEmail && itemEmail !== userEmail) {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: cannot delete this item",
+      });
     }
 
     const deleteResult = await db.collection("peerHeldItems").deleteOne({ _id: new ObjectId(id) });
+
     if (deleteResult.deletedCount === 0) {
       return res.status(500).json({ success: false, message: "Failed to delete item" });
-    }
-
-    if (item.photo) {
-      const filePath = path.join(__dirname, "..", item.photo.replace(/^\//, ""));
-      fs.unlink(filePath, (err) => {
-        if (err) console.error("Failed to delete item photo:", err);
-      });
     }
 
     res.json({ success: true, message: "Item deleted successfully", itemId: id });
@@ -220,5 +256,6 @@ router.delete("/item/:id", verifyIdToken, async (req, res) => {
     res.status(500).json({ success: false, message: "Error deleting item" });
   }
 });
+
 
 module.exports = router;
